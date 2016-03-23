@@ -3,7 +3,7 @@
 
 // ==PREPROCESSOR==
 // @name "Lyric Show Modoki"
-// @version "1.6.0"
+// @version "1.6.0-Mod-20160323"
 // @author "tomato111"
 // @import "%fb2k_profile_path%import\common\lib.js"
 // ==/PREPROCESSOR==
@@ -23,7 +23,7 @@ var fs = new ActiveXObject("Scripting.FileSystemObject"); // File System Object
 var ws = new ActiveXObject("WScript.Shell"); // WScript Shell Object
 var Trace = new TraceLog();
 var scriptName = "Lyric Show Modoki";
-var scriptVersion = "1.6.0";
+var scriptVersion = "1.6.0-Mod-20160323";
 var scriptdir = fb.ProfilePath + "import\\" + scriptName + "\\";
 var commondir = fb.ProfilePath + "import\\common\\";
 var down_pos = {};
@@ -97,6 +97,7 @@ prop = new function () {
         BackgroundBlur: window.GetProperty("Panel.Background.Blur", false),
         BackgroundBlurValue: window.GetProperty("Panel.Background.BlurValue", 1.1),
         BackgroundBlurAlpha: window.GetProperty("Panel.Background.BlurAlpha", 76),
+        ExpandRepetitionTimeTag: window.GetProperty("Panel.ExpandRepetitionTimeTag", true),
         ExpandRepetition: window.GetProperty("Panel.ExpandRepetition", false),
         AdjustScrolling: window.GetProperty("Panel.AdjustScrolling", 100),
         SingleClickSeek: window.GetProperty("Panel.SingleClickSeek", false),
@@ -936,7 +937,7 @@ LyricShow = new function (Style) {
             var m, ms;
             var tmpArray = [], timeArray = [];
             var offsetRe = /\[offset:(-?\d+)\]/;
-            var isTagRe = /(\[[\d.:[\]]+\])(.*)/;
+            var isTagRe = prop.Panel.ExpandRepetitionTimeTag ? /(\[[\d.:[\]]+\])(.*)/ : /(\[[\d.:]+\])(.*)/;
             var keyRe = /\[[\d:.]+\]/g;
             var spaceRe = /^[ 　]*$/;
             var notNumberRe = /\D/g;
