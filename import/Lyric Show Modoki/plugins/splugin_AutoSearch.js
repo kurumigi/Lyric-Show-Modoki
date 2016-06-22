@@ -3,10 +3,14 @@
     label: prop.Panel.Lang == 'ja' ? '設定: 再生時に検索' : 'Setting: Auto Search',
     author: 'tomato111',
     onStartUp: function () { // 最初に一度だけ呼び出される関数
+        var temp = window.GetProperty('Plugin.Search.AutoSaveTo', '');
+        if (!/^(?:File|Tag)$/i.test(temp))
+            window.SetProperty('Plugin.Search.AutoSaveTo', '');
+
         var _this = this;
         var timeout_millisecond = 8000;
 
-        this.AvailablePluginNames = window.GetProperty('Plugin.Search.AutoSearch', 'dplugin_Miku_Hatsune_wiki, dplugin_Utamap, dplugin_Utanet, dplugin_Kashiget, dplugin_AZLyrics').split(/[ 　]*,[ 　]*/);
+        this.AvailablePluginNames = window.GetProperty('Plugin.Search.AutoSearch', 'dplugin_Miku_Hatsune_wiki, dplugin_Utamap, dplugin_Utanet, dplugin_Kashiget, dplugin_AZLyrics, dplugin_Kashinavi, dplugin_Tube365').split(/[ 　]*,[ 　]*/);
         for (var i = 0; i < this.AvailablePluginNames.length;) {
             if (plugins[this.AvailablePluginNames[i]]) i++;
             else this.AvailablePluginNames.splice(i, 1);
@@ -17,7 +21,7 @@
             var diff = new Date() - _this.date_start;
             if (_this.results.length === _this.AvailablePluginNames.length || diff >= timeout_millisecond) {
                 StatusBar.hide();
-                arguments.callee.clearInterval();
+                _this.timer.clearInterval();
                 for (var i = 0; i < _this.results.length;) {
                     if (_this.results[i].lyric) i++;
                     else _this.results.splice(i, 1);
@@ -78,10 +82,10 @@
         };
 
     },
-    onPlay: function () { // 新たに曲が再生される度に呼び出される関数
+    onPlay: function () { // 新たに曲が再生された時に呼び出される関数
         this.timer.clearInterval();
         this.results.length = 0;
-        if (!this.onCommand.AutoSearch || !this.AvailablePluginNames.length || lyric) {
+        if (!this.onCommand.AutoSearch || !this.AvailablePluginNames.length || !main.IsVisible || lyric) {
             return;
         }
 
@@ -95,15 +99,16 @@
 
     },
     onCommand: function () { // プラグインのメニューをクリックすると呼び出される関数
-        arguments.callee.AutoSearch = !arguments.callee.AutoSearch;
-        StatusBar.setText(arguments.callee.AutoSearch ? 'AutoSearch: ON' : 'AutoSearch: OFF');
+        var thisFunc = this.onCommand;
+        thisFunc.AutoSearch = !thisFunc.AutoSearch;
+        StatusBar.setText(thisFunc.AutoSearch ? 'AutoSearch: ON' : 'AutoSearch: OFF');
         StatusBar.show();
-        var flag = arguments.callee.AutoSearch ? MF_CHECKED : MF_UNCHECKED;
+        var flag = thisFunc.AutoSearch ? MF_CHECKED : MF_UNCHECKED;
         this.menuitem.Flag = flag;
         for (var i = 0; i < this.AvailablePluginNames.length; i++) {
             plugins[this.AvailablePluginNames[i]].menuitem.Flag = flag;
         }
         Menu.build();
-        arguments.callee.AutoSearch && fb.IsPlaying && this.onPlay();
+        thisFunc.AutoSearch && fb.IsPlaying && this.onPlay();
     }
 };

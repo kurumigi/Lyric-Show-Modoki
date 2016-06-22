@@ -1,6 +1,6 @@
 ﻿pl = {
-    name: 'dplugin_Vovovov26',
-    label: prop.Panel.Lang == 'ja' ? '歌詞検索: 個人用東方歌詞置き場' : 'Download Lyrics: Touhou Kashi Okiba',
+    name: 'dplugin_Tube365',
+    label: prop.Panel.Lang == 'ja' ? '歌詞検索: Tube365' : 'Download Lyrics: Tube365',
     author: 'tomato111',
     onStartUp: function () { // 最初に一度だけ呼び出される関数
     },
@@ -43,9 +43,11 @@
 
         function createQuery(word, id) {
             if (id)
-                return 'http://vovovov26.blog.fc2.com/blog-entry-' + id + '.html';
+                return 'http://tube365.net/lang-' + (prop.Panel.Lang == 'ja' ? 'ja' : 'en') + '/' + id;
             else
-                return 'http://vovovov26.blog.fc2.com/?q=' + encodeURIComponent(word).replace(/'/g, '%27').replace(/\(/g, '%28').replace(/\)/g, '%29').replace(/%20/g, '+');
+                return 'http://tube365.net/index.php?keyword='
+                    + encodeURIComponent(title).replaceEach("'", '%27', '\\(', '%28', '\\)', '%29', '%20', '+', 'g')
+                    + '&search_type=track&lang=' + (prop.Panel.Lang == 'ja' ? 'ja' : 'en') + '&submit=%E6%A4%9C%E7%B4%A2';
         }
 
         function onLoaded(request, depth, file) {
@@ -57,11 +59,13 @@
 
             debug_html && fb.trace(res);
             var resArray = res.split('\n');
-
             var Page = new AnalyzePage(resArray, depth);
 
             if (Page.id) {
                 getHTML(null, 'GET', createQuery(null, Page.id), async, ++depth, onLoaded);
+            }
+            else if (Page.script_id) {
+                getHTML(null, 'GET', Page.script_id, async, ++depth, onLoaded);
             }
             else if (Page.lyrics) {
                 var text = onLoaded.info + Page.lyrics;
@@ -95,36 +99,39 @@
         }
 
         function AnalyzePage(resArray, depth) {
-            var tmp, tmpti;
+            var tmpti, tmpar, backref;
 
-            var IdSearchRE = /<h3><a href="blog-entry-(\d+?)\.html">(.+?)<\/a><\/h3>/i; // $1:id, $2:title
-            var ContentsSearchRE = /<div class="contents_body">(.+)/i; // $1:contents
+            var SearchRE = /<li><a href=".+?(init_char.+?)">(.+?)<\/a><\/li>/ig; // $1:id, $2:曲名 / 歌手名
+            var ScriptIDSearchRE = /<div id="lyrics_block"><script src="(.+?)"/i; // $1:script-id
+            var FuzzyRE = /[-.'&＆～・*＊+＋/／!！。,、 　]/g;
 
-            if (depth === 1) { // lyric
+            if (depth === 2) { // lyric
                 onLoaded.info = title + LineFeedCode + LineFeedCode;
-                for (var i = 0; i < resArray.length; i++)
-                    if (ContentsSearchRE.test(resArray[i])) {
-                        tmp = RegExp.$1.split('<br /><br /><br /><br />' + title + '<br />');
-                        if (tmp.length === 2)
-                            onLoaded.info += tmp[1]
-                                .replace(/<div class="fc2_footer".+/i, '')
-                                .replace(/<br \/>/g, LineFeedCode)
-                                .trim() + LineFeedCode + LineFeedCode;
-
-                        this.lyrics = tmp[0]
-                            .replace(/<br \/>/g, LineFeedCode)
-                            .trim();
+                this.lyrics = resArray[0]
+                    .replace(/^document.write\('/i, '')
+                    .replace(/(?:<br ?\/>){3,}.*/gi, '')
+                    .replace(/Thanks to.+for submitting.+/i, '')
+                    .replace(/<br ?\/>/gi, LineFeedCode)
+                    .replaceEach('&quot;', '"', '&amp;', '&', 'ig')
+                    .decNumRefToString()
+                    .trim();
+            }
+            else if (depth === 1) { // script-id-search
+                for (i = 0; i < resArray.length; i++)
+                    if (ScriptIDSearchRE.test(resArray[i])) {
+                        this.script_id = RegExp.$1;
                         return;
                     }
             }
             else { // search
-                tmpti = title.toLowerCase();
+                tmpti = title.toLowerCase().replace(FuzzyRE, '');
+                tmpar = artist.toLowerCase().replace(FuzzyRE, '');
                 for (i = 0; i < resArray.length; i++)
-                    if (IdSearchRE.test(resArray[i])) {
-                        debug_html && fb.trace('title: ' + RegExp.$2 + ' id: ' + RegExp.$1);
-                        if (RegExp.$2.toLowerCase() === tmpti) {
-                            this.id = RegExp.$1;
-                            break;
+                    while ((backref = SearchRE.exec(resArray[i])) !== null) {
+                        if (backref[2].toLowerCase().replace(/&amp;/g, '&').replace(FuzzyRE, '') === (tmpti + tmpar)) {
+                            debug_html && fb.trace('id: ' + backref[1] + ', title / artist: ' + backref[2]);
+                            this.id = backref[1];
+                            return;
                         }
                     }
             }

@@ -3,11 +3,7 @@
     label: prop.Panel.Lang == 'ja' ? '歌詞検索: 東方同人CD' : 'Download Lyrics: Touhou Doujin CD',
     author: 'tomato111',
     onStartUp: function () { // 最初に一度だけ呼び出される関数
-        var temp = window.GetProperty('Plugin.Search.AutoSaveTo', ''); // 空欄 or Tag or File
-        if (!/^(?:File|Tag)$/i.test(temp))
-            window.SetProperty('Plugin.Search.AutoSaveTo', '');
     },
-    onPlay: function () { }, // 新たに曲が再生される度に呼び出される関数
     onCommand: function (isAutoSearch) { // プラグインのメニューをクリックすると呼び出される関数
 
         if (!isAutoSearch && utils.IsKeyPressed(0x11)) { // VK_CONTROL
@@ -98,9 +94,9 @@
         }
 
         function AnalyzePage(resArray, depth) {
-            var isInfo, isLyric;
+            var isInfo, isLyric, tmpti;
 
-            var IdSearchRE = new RegExp('<a href="http://www31.atwiki.jp/touhoukashi/.+?page=(.+?)" title="(?:\\d{1,2})?\\.? ?' + title, 'i'); // $1:id
+            var IdSearchRE = /<a href=".+?&amp;page=(.+?)" title="(?:\d{1,2})?\.? ?(.+?)" style=".+?">/i; // $1:id, $2:title
             var ContentsSearchRE = new RegExp('(?:<h[23] id="id_.+?">' + title + '</h[23]>|(アルバム)：<a href=")', 'i'); // サイトの書式にブレがあるので少し複雑に
             var EndInfoRE = /<\/div>/i;
             var EndLyricRE = /<div class=/i;
@@ -140,11 +136,14 @@
                     .trim();
             }
             else { // search
+                tmpti = title.toLowerCase();
                 for (i = 0; i < resArray.length; i++)
                     if (IdSearchRE.test(resArray[i])) {
-                        debug_html && fb.trace('id: ' + RegExp.$1);
-                        this.id = RegExp.$1;
-                        break;
+                        debug_html && fb.trace('title: ' + RegExp.$2 + ' id: ' + RegExp.$1);
+                        if (RegExp.$2.toLowerCase() === tmpti) {
+                            this.id = RegExp.$1;
+                            break;
+                        }
                     }
             }
         }
