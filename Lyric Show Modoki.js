@@ -3,7 +3,7 @@
 
 // ==PREPROCESSOR==
 // @name "Lyric Show Modoki"
-// @version "1.6.4-Mod-20160622"
+// @version "1.6.4-Mod-20160925"
 // @author "tomato111"
 // @import "%fb2k_profile_path%import\common\lib.js"
 // ==/PREPROCESSOR==
@@ -23,7 +23,7 @@ var fs = new ActiveXObject("Scripting.FileSystemObject"); // File System Object
 var ws = new ActiveXObject("WScript.Shell"); // WScript Shell Object
 var Trace = new TraceLog();
 var scriptName = "Lyric Show Modoki";
-var scriptVersion = "1.6.4-Mod-20160622";
+var scriptVersion = "1.6.4-Mod-20160925";
 var scriptdir = fb.ProfilePath + "import\\" + scriptName + "\\";
 var commondir = fb.ProfilePath + "import\\common\\";
 var down_pos = {};
@@ -2015,6 +2015,8 @@ LyricShow = new function (Style) {
 
         this.init();
         prop.Panel.BackgroundEnable && this.BackgroundImage.setImage();
+        var schemeRE = /:\/\//;
+
         L:
             {
                 parse_path = path[0]; // set default parse_path for save
@@ -2033,7 +2035,9 @@ LyricShow = new function (Style) {
                             break;
                         case "Sync_File":
                             for (var j = 0; j < path.length; j++) {
-                                if (this.readLyric(path[j] + ".lrc")) break L;
+                                if (!path[j].match(schemeRE)) {
+                                    if (this.readLyric(path[j] + ".lrc")) break L;
+                                }
                             }
                             break;
                         case "Unsync_Tag":
@@ -2041,7 +2045,9 @@ LyricShow = new function (Style) {
                             break;
                         case "Unsync_File":
                             for (j = 0; j < path.length; j++) {
-                                if (this.readLyric(path[j] + ".txt")) break L;
+                                if (!path[j].match(schemeRE)) {
+                                    if (this.readLyric(path[j] + ".txt")) break L;
+                                }
                             }
                             break;
                     }
