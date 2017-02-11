@@ -3,7 +3,7 @@
 
 // ==PREPROCESSOR==
 // @name "Lyric Show Modoki"
-// @version "1.6.4-Mod-20160925"
+// @version "1.6.8-Mod-20170211"
 // @author "tomato111"
 // @import "%fb2k_profile_path%import\common\lib.js"
 // ==/PREPROCESSOR==
@@ -14,7 +14,7 @@
 //== Global Variable and Function ============
 //============================================
 // user reserved words
-var plugins, lyric, parse_path, path, directory, fieldname, filetype, dataSize, charset, offsetinfo, backalpha, infoPath, backupLyric
+var plugins, lyric, parse_path, path, directory, fieldname, filetype, dataSize, charset, offsetinfo, backalpha, infoPath
 , offsetY, fixY, moveY, lineY, drag, drag_y, g_x, g_y, ww, wh, larea_seek, rarea_seek, seek_width, rarea_seek_x, arc_w, arc_h, ignore_remainder, Lock, Lock_MiddleButton, movable, jumpY
 , Left_Center, Center_Left, Center_Right, Right_Center, centerleftX, TextHeight, TextHeightWithoutLPadding, BackgroundImg
 , prop, LyricShow, Edit, Buttons, StatusBar, Keybind, Menu, Messages, Label;
@@ -23,18 +23,19 @@ var fs = new ActiveXObject("Scripting.FileSystemObject"); // File System Object
 var ws = new ActiveXObject("WScript.Shell"); // WScript Shell Object
 var Trace = new TraceLog();
 var scriptName = "Lyric Show Modoki";
-var scriptVersion = "1.6.4-Mod-20160925";
+var scriptVersion = "1.6.8-Mod-20170211";
 var scriptdir = fb.ProfilePath + "import\\" + scriptName + "\\";
 var commondir = fb.ProfilePath + "import\\common\\";
 var down_pos = {};
 var disp = {};
+var backupLyric = [];
 var TextRender = gdi.CreateStyleTextRender();
 var DT_LEFT = 0x00000000;
 var DT_CENTER = 0x00000001;
 var DT_RIGHT = 0x00000002;
 var DT_WORDBREAK = 0x00000010;
 var DT_NOPREFIX = 0x00000800;
-var DT_WORD_ELLIPSIS = 0x00040000
+var DT_WORD_ELLIPSIS = 0x00040000;
 var GDIPlus_LEFT = 0x00000000;
 var GDIPlus_CENTER = 0x10000000;
 var GDIPlus_RIGHT = 0x20000000;
@@ -45,8 +46,11 @@ var MF_DISABLED = 0x00000002;
 var MF_UNCHECKED = 0x00000000;
 var MF_CHECKED = 0x00000008;
 var MF_STRING = 0x00000000;
-var alltagsRE = /\[\d\d:\d\d[.:]\d\d\]/g;
-var timeRE = /\[(\d\d):(\d\d)[.:](\d\d)\]/;
+var VK_SHIFT = 0x10;
+var VK_CONTROL = 0x11;
+var alltagsRE = /\[\d\d\d?:\d\d[.:]\d\d\]/g;
+var tagTimeRE = /^\[(\d\d\d?):(\d\d)[.:](\d\d)\]/;
+var isSyncRE = /^\[\d\d\d?:\d\d[.:]\d\d\]/m;
 var repeatRes = getRepeatRes(scriptdir + "repeat.txt", scriptdir + "repeat-default.txt");
 
 //========
@@ -76,7 +80,7 @@ prop = new function () {
         Path: window.GetProperty("Panel.Path", defaultpath),
         PathFuzzyLevel: window.GetProperty("Panel.Path.FuzzyLevel", 0),
         Lang: window.GetProperty("Panel.Language", ""),
-        Conf: window.GetProperty("Panel.HideConfigureMenu", false),
+        HideConf: window.GetProperty("Panel.HideConfigureMenu", false),
         Interval: 15, // Don't change
         Editor: window.GetProperty("Panel.ExternalEditor", ""),
         NoLyric: window.GetProperty("Panel.NoLyricsFound", "Title: %title%\\nArtist: %artist%\\nAlbum: %album%\\n\\n-no lyrics-"),
@@ -208,7 +212,7 @@ prop = new function () {
         white: {
             Text: RGB(80, 80, 80),                          // Text color
             Background: RGBA(255, 255, 255, 255),           // Background color
-            ViewBackground: RGBA(193, 219, 252, 80),        // Bacground color of ViewMode
+            ViewBackground: RGBA(236, 244, 254, 255),        // Bacground color of ViewMode
             Line: RGBA(193, 219, 252, 200),                 // Bacground color of playing line
             Rule: RGBA(0, 0, 0, 40),                        // Ruled line color
             Length: RGB(100, 100, 100),                     // Number of line
@@ -217,8 +221,8 @@ prop = new function () {
         },
         black: {
             Text: RGB(210, 210, 210),
-            Background: RGBA(0, 0, 0, 200),
-            ViewBackground: RGBA(0, 0, 0, 189),
+            Background: RGBA(0, 0, 0, 210),
+            ViewBackground: RGBA(0, 0, 0, 195),
             Line: RGBA(153, 255, 20, 70),
             Rule: RGBA(255, 255, 205, 40),
             Length: RGB(180, 180, 180),
@@ -227,8 +231,8 @@ prop = new function () {
         },
         user: {
             Text: eval(window.GetProperty("Style.User.Edit.Text", "RGB(210, 210, 210)")),
-            Background: eval(window.GetProperty("Style.User.Edit.Background", "RGBA(0,0,0,200)")),
-            ViewBackground: eval(window.GetProperty("Style.User.Edit.ViewBackground", "RGBA(0,0,0,189)")),
+            Background: eval(window.GetProperty("Style.User.Edit.Background", "RGBA(0,0,0,210)")),
+            ViewBackground: eval(window.GetProperty("Style.User.Edit.ViewBackground", "RGBA(0,0,0,195)")),
             Line: eval(window.GetProperty("Style.User.Edit.PlayingLine", "RGBA(153, 255, 20, 70)")),
             Rule: eval(window.GetProperty("Style.User.Edit.RuledLine", "RGBA(255, 255, 205, 40)")),
             Length: eval(window.GetProperty("Style.User.Edit.LineNumber", "RGB(180, 180, 180)")),
@@ -321,7 +325,12 @@ prop = new function () {
         Rule: window.GetProperty("Edit.ShowRuledLine", true),
         Step: window.GetProperty("Edit.Step", 14),
         Start: false,
-        View: false
+        View: false,
+        Keybind:
+        {
+            AheadBy3Seconds: window.GetProperty("Edit.Keybind.AheadBy3Seconds", 39), // Default is 'Right' Key
+            BackBy3Seconds: window.GetProperty("Edit.Keybind.BackBy3Seconds", 37) // Default is 'Left' Key
+        }
     };
 
     if (!this.Edit.Step && typeof this.Edit.Step !== "number" || this.Edit.Step < 0)
@@ -358,8 +367,11 @@ prop = new function () {
 
     // ==Plugin====
     this.Plugin = {
-        Disable: window.GetProperty("Plugin.Disable", "") // set plugin names. (e.g. dplugin_Utamap, oplugin_NewFile_TXT
+        Disable: window.GetProperty("Plugin.Disable", ""), // set plugin's names. (e.g. dplugin_Utamap, oplugin_NewFile_TXT
+        FunctionKey: window.GetProperty("Plugin.FunctionKey", ",,,,,,,,uplugin_Lyric_Show_Modoki").split(",") // set plugin's names. (e.g. ,,dplugin_AZLyrics,,,,,,uplugin_Lyric_Show_Modoki
     };
+
+    this.Plugin.FunctionKey.length = 9;
 };
 
 //========
@@ -421,7 +433,8 @@ LanguageLoader = {
             Deleted: new Message(lang1.Deleted || lang0.Deleted, scriptName, 64),
             FailedToSaveLyricsToTag: new Message(lang1.FailedToSaveLyricsToTag || lang0.FailedToSaveLyricsToTag, scriptName, 48),
             FailedToReadText: new Message(lang1.FailedToReadText || lang0.FailedToReadText, scriptName, 48),
-            GetClipboard: new Message(lang1.GetClipboard || lang0.GetClipboard, scriptName, 48)
+            GetClipboard: new Message(lang1.GetClipboard || lang0.GetClipboard, scriptName, 48),
+            LargeFieldsConfig: new Message(lang1.LargeFieldsConfig || lang0.LargeFieldsConfig, scriptName, 48)
         };
 
         lang0 = languages[0].items.Label;
@@ -785,7 +798,6 @@ LyricShow = new function (Style) {
     var directoryRE = /.+\\/;
     var extensionRE = /^lrc|txt$/i;
     var zeroTagRE = /^\[00:00[.:]00\]$/;
-    var tagRE = /\[\d\d:\d\d[.:]\d\d\]/;
     var FuzzyRE = ["", /[ 　]/g, /\(.*?\)/g];
     var BackgroundPath, BackgroundSize;
 
@@ -885,6 +897,8 @@ LyricShow = new function (Style) {
         var str = FileInfo.MetaValue(idx, 0); // second arguments is numbar for multivalue. e.g.) ab;cde;f
 
         if (!str) return;
+        if (str === ".")
+            Messages.LargeFieldsConfig.fbpopup();
 
         if (/^LYRICS$/.test(tag)) {
             fieldname = "LYRICS";
@@ -914,10 +928,7 @@ LyricShow = new function (Style) {
         }
 
 
-        if (tagRE.test(str)) // isSync
-            filetype = "lrc";
-        else
-            filetype = "txt";
+        filetype = isSyncRE.test(str) ? "lrc" : "txt";
 
         lyric = { text: str.trim().split(getLineFeedCode(str)), i: 1, info: [] };
 
@@ -983,8 +994,6 @@ LyricShow = new function (Style) {
                     putTime(ms, j++);
                 }
             }
-
-            this.trimLine_TopAndBottom();
         }
 
         else { // analyze "no lrc"
@@ -1033,14 +1042,13 @@ LyricShow = new function (Style) {
                         } // label END 
                 }
             }
-
-            this.trimLine_TopAndBottom();
         }
 
+        this.trimLine();
         return true;
     };
 
-    this.trimLine_TopAndBottom = function () {
+    this.trimLine = function () {
 
         var text = lyric.text;
 
@@ -1049,18 +1057,30 @@ LyricShow = new function (Style) {
                 text.unshift("[00:00" + prop.Save.TimetagSign + "00]");
         }
         else {
+            for (; ;)
+                if (text[0] === "")
+                    text.shift();
+                else break;
+
+            for (; ;)
+                if (text[text.length - 1] === "")
+                    text.pop();
+                else break;
+
             text.unshift("");
             text.push("");
+        }
+    };
 
-            for (; ;)
-                if (text[1] === "")
-                    text.splice(1, 1);
-                else break;
+    this.backup = function () {
 
-            for (; ;)
-                if (text[text.length - 2] === "")
-                    text.splice(text.length - 2, 1);
-                else break;
+        var LineFeedCode = prop.Save.LineFeedCode;
+        var backup = lyric.text.join(LineFeedCode).trim();
+        if (lyric.info.length)
+            backup = lyric.info.join(LineFeedCode) + LineFeedCode + backup;
+        if (backupLyric[0] !== backup) {
+            backupLyric.unshift(backup);
+            backupLyric.length = 6;
         }
     };
 
@@ -1071,7 +1091,7 @@ LyricShow = new function (Style) {
                 var lineList = [""];
                 var text = lyric.text;
                 for (var i = 0; i < text.length; i++) {
-                    if (timeRE.test(text[i]))
+                    if (tagTimeRE.test(text[i]))
                         lineList[i] = (RegExp.$1 * 60 + Number(RegExp.$2)) * 100 + Number(RegExp.$3); // key=line number, value=start time [ms*1/10]
                 }
 
@@ -1292,17 +1312,16 @@ LyricShow = new function (Style) {
                     this.textHighlineImg.ReleaseGraphics(canvas);
                 }
             }
-            DrawString.prototype.scroll_0 = function (time) { // for unsynced lyrics
+            DrawString.prototype.scroll_0 = function () { // for unsynced lyrics
                 if (!movable) return;
 
                 offsetY -= this.speed;
                 moveY += this.speed;
 
                 if (moveY >= 1) {
-                    moveY = 1 - Math.abs(offsetY - Math.floor(offsetY));
+                    moveY -= Math.floor(moveY);
                     return true; // refresh flag
                 }
-                // fb.trace(this.i + " :: " + this.height + " :: " + this.speed + " :: " + offsetY + " :: " + lyric.text.length + " :: " + time + " > " + LyricShow.setProperties.DrawStyle[this.i + 1].time * 100)
             };
             DrawString.prototype.scroll_1 = function (time) { // for synced lyrics
                 //--color--
@@ -1563,7 +1582,7 @@ LyricShow = new function (Style) {
                             gr.DrawImage(this.textImg, x, y, w, h, 0, 0, w, h, 0, alpha);
                         else if (this.i === lyric.i - 1) {
                             Style.FadeInPlayingColor && gr.DrawImage(this.textImg, x, y, w, h, 0, 0, w, h, 0, alpha);
-                            gr.DrawImage(this.textHighlineImg, x, y, w, h, 0, 0, w, h, 0, Style.FadeInPlayingColor ? Math.min(LyricShow.on_paintInfo.dpi / 48 * 255, alpha) : alpha);
+                            gr.DrawImage(this.textHighlineImg, x, y, w, h, 0, 0, w, h, 0, Style.FadeInPlayingColor ? (LyricShow.on_paintInfo.dpi / 48) * alpha : alpha);
                         }
                         else
                             gr.DrawImage(this.textHighlineImg, x, y, w, h, 0, 0, w, h, 0, alpha);
@@ -1608,7 +1627,7 @@ LyricShow = new function (Style) {
                             gr.DrawImage(this.textImg, x, y, w, h, 0, 0, w, h, 0, alpha);
                         else if (this.i === lyric.i - 1) {
                             Style.FadeInPlayingColor && gr.DrawImage(this.textImg, x, y, w, h, 0, 0, w, h, 0, alpha);
-                            gr.DrawImage(this.textHighlineImg, x, y, w, h, 0, 0, w, h, 0, Style.FadeInPlayingColor ? (LyricShow.on_paintInfo.dpi / 48 * 255) * alpha / 255 : alpha);
+                            gr.DrawImage(this.textHighlineImg, x, y, w, h, 0, 0, w, h, 0, Style.FadeInPlayingColor ? (LyricShow.on_paintInfo.dpi / 48) * alpha : alpha);
                         }
                         else
                             gr.DrawImage(this.textHighlineImg, x, y, w, h, 0, 0, w, h, 0, alpha);
@@ -1649,8 +1668,14 @@ LyricShow = new function (Style) {
                 return true;
             };
             DrawString.prototype.doCommand = function () {
-                if (this.time === 0) fb.PlaybackTime = 0;
-                else if (this.time) fb.PlaybackTime = this.time;
+                if (utils.IsKeyPressed(VK_CONTROL)) {
+                    var word = encodeURIComponent(this.text.replace(/[\s　]+/g, " ")).replaceEach("'", '%27', '\\(', '%28', '\\)', '%29', '%20', '+', '!', '%21', 'g');
+                    word && FuncCommand("https://www.google.com/search?q=" + word);
+                    word && FuncCommand("https://twitter.com/search?q=" + word);
+                }
+                else
+                    if (this.time === 0) fb.PlaybackTime = 0;
+                    else if (this.time) fb.PlaybackTime = this.time;
             };
             // Constructor END
         }
@@ -1660,8 +1685,6 @@ LyricShow = new function (Style) {
     this.searchLine = function (time) {
 
         this.pauseTimer(true);
-        disp.top = 0;
-        disp.bottom = lyric.text.length - 1;
         prop.Panel.AutoScroll && (movable = true);
         ignore_remainder = false; // 誤差補正ON
         time *= 100;
@@ -1743,7 +1766,7 @@ LyricShow = new function (Style) {
             }
         }
         else
-            offsetY = fixY - this.setProperties.h * time / Math.round(fb.PlaybackLength * 100); // パネルの半分 - (1ファイルの高さ * 再生時間の割合)
+            offsetY = fixY - this.setProperties.h * time / (fb.PlaybackLength * 100); // パネルの半分 - (1ファイルの高さ * 再生時間の割合)
 
         if (offsetY === parseInt(offsetY, 10)) // 整数かどうか
             moveY = 0;
@@ -2065,7 +2088,7 @@ LyricShow = new function (Style) {
         this.setProperties.buildDrawStyle();
 
         this.searchLine(fb.PlaybackTime);
-        filetype === "txt" && (function () { offsetY = Math.ceil(offsetY) - (moveY - Math.floor(moveY)); }).timeout(1000); // 再生始めは不安定であるが、非同期歌詞ではlineYでの修正が出来ないのでディレイで一度だけ小数点以下を揃えて安定させる
+        this.backup();
     };
 
     this.end = function () {
@@ -2078,16 +2101,9 @@ LyricShow = new function (Style) {
                 this.setProperties.DrawStyle[i].textImg.Dispose();
             }
 
-        if (lyric) { // 直前の歌詞を復元できるようにバックアップしておく
-            var LineFeedCode = prop.Save.LineFeedCode;
-            backupLyric = lyric.text.join(LineFeedCode).trim();
-            if (lyric.info.length)
-                backupLyric = lyric.info.join(LineFeedCode) + LineFeedCode + backupLyric;
-        }
-
         path = directory = dataSize = charset = fieldname = filetype = lyric = offsetinfo = null;
         this.setProperties.lineList = this.setProperties.leftcenterX = this.setProperties.wordbreakList = this.setProperties.wordbreakText = this.setProperties.scrollSpeedList = this.scrollSpeedType2List = this.setProperties.DrawStyle = this.setProperties.h = this.setProperties.minOffsetY = null;
-        lineY = moveY = null;
+        lineY = moveY = jumpY = null;
 
         if (repeatRes)
             for (i = 0; i < repeatRes.length; i++)
@@ -2105,7 +2121,7 @@ LyricShow = new function (Style) {
             offsetY = LyricShow.setProperties.minOffsetY;
             movable = false; // 移動不可のフラグ
         }
-        LyricShow.setProperties.DrawStyle[lyric.i - 1].scroll_0(fb.PlaybackTime * 100) && LyricShow.repaintRect();
+        LyricShow.setProperties.DrawStyle[lyric.i - 1].scroll_0() && LyricShow.repaintRect();
     };
 
     this.scroll_1 = function () { // timerで呼び出す関数
@@ -2217,6 +2233,9 @@ LyricShow = new function (Style) {
 
         // lyrics
         if (lyric) { // lyrics is found
+            disp.top = 0;
+            disp.bottom = lyric.text.length - 1;
+
             if (lyric.info.length && offsetY > 0 && prop.Panel.ScrollType !== 4 && prop.Panel.ScrollType !== 5)
                 for (var i = 1; i <= lyric.info.length; i++) {
                     Style.Shadow && gr.GdiDrawText(lyric.info[lyric.info.length - i], Style.Font, Style.Color.TextShadow, this.on_paintInfo.x + Style.ShadowPosition[0], Math.ceil(g_y + offsetY - TextHeight * i + Style.ShadowPosition[1]), this.on_paintInfo.w, wh, DT_CENTER | DT_NOPREFIX);
@@ -2260,14 +2279,14 @@ LyricShow = new function (Style) {
                 }
                 else
                     if (Style.Shadow)
-                        for (i = 0, disp.top = 0; i < lyric.text.length; i++) {
+                        for (i = 0; i < lyric.text.length; i++) {
                             var c = offsetY + DrawStyle[i].y;
                             if (c > wh) { disp.bottom = i - 1; break; } // do not draw text outside the screen. CPU utilization rises
                             else if (c < -DrawStyle[i].height) { disp.top = i + 1; continue; } // ditto
                             else DrawStyle[i].draw_withShadow(gr, DrawStyle[i].text, null, this.on_paintInfo.x, this.on_paintInfo.w);
                         }
                     else
-                        for (i = 0, disp.top = 0; i < lyric.text.length; i++) {
+                        for (i = 0; i < lyric.text.length; i++) {
                             c = offsetY + DrawStyle[i].y;
                             if (c > wh) { disp.bottom = i - 1; break; } // do not draw text outside the screen. CPU utilization rises
                             else if (c < -DrawStyle[i].height) { disp.top = i + 1; continue; } // ditto
@@ -2275,14 +2294,14 @@ LyricShow = new function (Style) {
                         }
             else
                 if (Style.Shadow)
-                    for (i = 0, disp.top = 0; i < lyric.text.length; i++) {
+                    for (i = 0; i < lyric.text.length; i++) {
                         c = offsetY + DrawStyle[i].y;
                         if (c > wh) { disp.bottom = i - 1; break; }
                         else if (c < -DrawStyle[i].height) { disp.top = i + 1; continue; }
                         else DrawStyle[i].draw_withShadow(gr, DrawStyle[i].text, Style.Highline ? Style.Color.PlayingText : Style.Color.Text, this.on_paintInfo.x, this.on_paintInfo.w);
                     }
                 else
-                    for (i = 0, disp.top = 0; i < lyric.text.length; i++) {
+                    for (i = 0; i < lyric.text.length; i++) {
                         c = offsetY + DrawStyle[i].y;
                         if (c > wh) { disp.bottom = i - 1; break; }
                         else if (c < -DrawStyle[i].height) { disp.top = i + 1; continue; }
@@ -2371,14 +2390,12 @@ LyricShow = new function (Style) {
 Edit = new function (Style, p) {
 
     var DrawStyle, edit_fixY, di = [];
-    var tagTopRe = /(^\[\d\d:\d\d[.:]\d\d\])/;
 
     this.init = function () {
 
         edit_fixY = TextHeight * 2;
-        disp.top = 0;
         DrawStyle = p.DrawStyle;
-        offsetY = edit_fixY + Style.LPadding / 2;
+        offsetY = edit_fixY + Math.round(Style.LPadding / 2);
 
         if (filetype === "lrc") {
             lyric.i = lyric.text.length;
@@ -2409,7 +2426,7 @@ Edit = new function (Style, p) {
         if (lyric.i === 1) return;
 
         do {
-            lyric.text[--lyric.i] = lyric.text[lyric.i].slice(10);
+            lyric.text[--lyric.i] = lyric.text[lyric.i].replace(tagTimeRE, "");
             offsetY += DrawStyle[lyric.i - 1].height;
             if (lyric.i === 1) break;
         } while (all)
@@ -2424,18 +2441,18 @@ Edit = new function (Style, p) {
         Lock = true;
 
         var pl = lyric.i - 1;
-        lyric.text[pl].match(timeRE);
+        lyric.text[pl].match(tagTimeRE);
         var pt = (RegExp.$1 * 60 + Number(RegExp.$2)) * 100 + Number(RegExp.$3);
 
         if (n < 0) {
-            lyric.text[pl - 1].match(timeRE);
+            lyric.text[pl - 1].match(tagTimeRE);
             var tt = (RegExp.$1 * 60 + Number(RegExp.$2)) * 100 + Number(RegExp.$3);
             if (pt - tt > -n || tt === 0) // 下限
                 apply();
         }
         else {
             if (lyric.i !== lyric.text.length) {
-                var r = lyric.text[pl + 1].match(timeRE);
+                var r = lyric.text[pl + 1].match(tagTimeRE);
                 tt = (RegExp.$1 * 60 + Number(RegExp.$2)) * 100 + Number(RegExp.$3);
             }
             if (!r || tt - pt > n) // 上限
@@ -2463,7 +2480,7 @@ Edit = new function (Style, p) {
         var tt;
 
         for (var i = 1; i < lyric.text.length; i++) {
-            if (lyric.text[i].match(timeRE)) {
+            if (tagTimeRE.test(lyric.text[i])) {
                 tt = (RegExp.$1 * 60 + Number(RegExp.$2)) * 100 + Number(RegExp.$3);
                 this.applyTimeDiff(tt, i, -n);
             }
@@ -2486,7 +2503,7 @@ Edit = new function (Style, p) {
         if (time < 0)
             time = 0;
 
-        lyric.text[i] = lyric.text[i].slice(10);
+        lyric.text[i] = lyric.text[i].replace(tagTimeRE, "");
         putTime(time, i);
 
         if (prop.Edit.View) {
@@ -2522,20 +2539,25 @@ Edit = new function (Style, p) {
                     if (str.indexOf("##") === 0) // insert line to bottom
                         text.push(str.slice(2));
                     else {
-                        a = text.splice(i, text.length - i, str);
+                        a = text.splice(lyric.i, text.length - lyric.i, str);
                         text.push.apply(text, a);
                     }
+                else
+                    return;
                 break;
             case 2: // edit line
-                str = prompt("", Label.EditLine, text[i - 1].slice(10));
+                str = prompt("", Label.EditLine, text[i - 1].replace(tagTimeRE, ""));
                 if (typeof str !== "undefined")
-                    text[i - 1] = text[i - 1].slice(0, 10) + str;
+                    text[i - 1] = text[i - 1].match(tagTimeRE)[0] + str;
+                else
+                    return;
                 break;
         }
 
         p.setWordbreakList(true);
         p.buildDrawStyle();
         DrawStyle = p.DrawStyle;
+        n === 2 && (offsetY = edit_fixY + Math.round(Style.LPadding / 2) - DrawStyle[lyric.i - 1].y);
 
         window.Repaint();
     };
@@ -2631,16 +2653,8 @@ Edit = new function (Style, p) {
 
     this.View = new function () {
 
-        this.setProperties = function () {
-            p.setLineList(true);
-            p.setWordbreakList(true);
-            p.buildDrawStyle();
-            DrawStyle = p.DrawStyle;
-        };
-
         this.searchLine = function (time) {
             this.pauseTimer(true);
-            disp.top = 0;
 
             time = Math.round(time * 100); // time *= 100 この計算になぜか微量の誤差が生じてapplyTimeDiffに影響が出るので対策する
 
@@ -2648,7 +2662,7 @@ Edit = new function (Style, p) {
                 if (p.lineList[i] > time) break;
 
             lyric.i = i;
-            offsetY = edit_fixY + Style.LPadding / 2 - DrawStyle[lyric.i - 1].y;
+            offsetY = edit_fixY + Math.round(Style.LPadding / 2) - DrawStyle[lyric.i - 1].y;
             window.Repaint();
             this.pauseTimer(fb.IsPaused);
         };
@@ -2671,8 +2685,12 @@ Edit = new function (Style, p) {
         this.start = function () {
             prop.Edit.View = true;
             this.i = lyric.i; // ビューモード解除時に元に戻れるように値を退避
-            this.offsetY = offsetY; // これも同様
-            lyric.i !== lyric.text.length && this.setProperties();
+            if (lyric.i !== lyric.text.length) {
+                p.setLineList(true);
+                p.setWordbreakList(true);
+                p.buildDrawStyle();
+                DrawStyle = p.DrawStyle;
+            }
             Edit.calcRGBdiff();
             this.searchLine(fb.PlaybackTime);
             Menu.build(Menu.Edit);
@@ -2682,8 +2700,7 @@ Edit = new function (Style, p) {
             prop.Edit.View = false;
             this.pauseTimer(true);
             lyric.i = this.i; // ビューモードに入る前の状態に戻す
-            offsetY = this.offsetY; // これも同様
-            this.i = this.offsetY = null;
+            offsetY = edit_fixY + Math.round(Style.LPadding / 2) - DrawStyle[lyric.i - 1].y;
             lyric.i === lyric.text.length && Edit.undo();
             Edit.calcRGBdiff();
         };
@@ -2692,9 +2709,9 @@ Edit = new function (Style, p) {
     this.switchView = function () {
 
         prop.Edit.View = !prop.Edit.View;
-        if (prop.Edit.View) Edit.View.start();
+        if (prop.Edit.View) this.View.start();
         else {
-            Edit.View.end();
+            this.View.end();
             window.Repaint();
             Menu.build(Menu.Edit);
         }
@@ -2715,6 +2732,8 @@ Edit = new function (Style, p) {
 
         var p = lyric.i - 1; // playing line
         var n, str, ci, c;
+        disp.top = 0;
+        disp.bottom = lyric.text.length - 1;
 
         // background color
         gr.FillSolidRect(-1, -1, window.Width + 1, window.Height + 1, prop.Edit.View ? Style.Color.ViewBackground : Style.Color.Background);
@@ -2728,10 +2747,10 @@ Edit = new function (Style, p) {
             n = p + i;
             if (i === -2 && n >= 0) { disp.top = n; }
             if (n < 0) continue;
-            else if (n >= lyric.text.length || offsetY + DrawStyle[n].nextY > wh) { disp.bottom = n - 1; break; }
+            else if (n === lyric.text.length || offsetY + DrawStyle[n].y > wh) { disp.bottom = n - 1; break; }
             else {
-                if (tagTopRe.test(lyric.text[n]))
-                    str = RegExp.$1 + " " + lyric.text[n].replace(alltagsRE, "");
+                if (tagTimeRE.test(lyric.text[n]))
+                    str = RegExp.lastMatch + " " + lyric.text[n].replace(alltagsRE, "");
                 else
                     str = lyric.text[n].replace(alltagsRE, "");
                 ci = (i < prop.Edit.Step) ? (i < 0) ? (i >= -prop.Edit.Step) ? -i : null : i : null;
@@ -2783,8 +2802,8 @@ Buttons = new function () {
     var buttonlist = [
         {
             Img: gdi.Image(scriptdir + "clear2.png"),
-            X: "window.Width - 4 - (icon_space * 0) - (16 * 1)",
-            Y: "window.Height - 19",
+            X: function () { return window.Width - 4 - (icon_space * 0) - (16 * 1); },
+            Y: function () { return window.Height - 19; },
             Tiptext: Label.Reload,
             Func: function () {
                 main(path || "");
@@ -2793,8 +2812,8 @@ Buttons = new function () {
         },
         {
             Img: gdi.Image(scriptdir + "clear.png"),
-            X: "window.Width - 4 - (icon_space * 1) - (16 * 2)",
-            Y: "window.Height - 19",
+            X: function () { return window.Width - 4 - (icon_space * 1) - (16 * 2); },
+            Y: function () { return window.Height - 19; },
             Tiptext: Label.Clear,
             Func: function () {
                 prop.Edit.View && Edit.View.end();
@@ -2804,8 +2823,8 @@ Buttons = new function () {
         },
         {
             Img: gdi.Image(scriptdir + "align.png"),
-            X: "window.Width - 4 - (icon_space * 3) - (16 * 3)",
-            Y: "window.Height - 19",
+            X: function () { return window.Width - 4 - (icon_space * 3) - (16 * 3); },
+            Y: function () { return window.Height - 19; },
             Tiptext: Label.Align,
             Func: function () {
                 var a = prop.Edit.Align ^ DT_WORDBREAK ^ DT_NOPREFIX;
@@ -2819,8 +2838,8 @@ Buttons = new function () {
         },
         {
             Img: gdi.Image(scriptdir + "offset-.png"),
-            X: "window.Width - 4 - (icon_space * 5) - (16 * 4)",
-            Y: "window.Height - 19",
+            X: function () { return window.Width - 4 - (icon_space * 5) - (16 * 4); },
+            Y: function () { return window.Height - 19; },
             Tiptext: Label.OffsetM,
             Func: function () {
                 Edit.offsetTime(-5);
@@ -2828,8 +2847,8 @@ Buttons = new function () {
         },
         {
             Img: gdi.Image(scriptdir + "offset+.png"),
-            X: "window.Width - 4 - (icon_space * 6) - (16 * 5)",
-            Y: "window.Height - 19",
+            X: function () { return window.Width - 4 - (icon_space * 6) - (16 * 5); },
+            Y: function () { return window.Height - 19; },
             Tiptext: Label.OffsetP,
             Func: function () {
                 Edit.offsetTime(5);
@@ -2839,7 +2858,7 @@ Buttons = new function () {
 
     this.buildButton = function () {
         for (var i = 0; i < buttonlist.length; i++) {
-            button[i] = new Button(buttonlist[i], i);
+            button[i] = new Button(buttonlist[i]);
         }
     };
 
@@ -2864,10 +2883,10 @@ Buttons = new function () {
     };
 
     // Constructor
-    function Button(obj, i) {
+    function Button(obj) {
         this.img = obj.Img;
-        this.x = eval(obj.X);
-        this.y = eval(obj.Y);
+        this.x = obj.X();
+        this.y = obj.Y();
         this.width = obj.Img.width;
         this.height = obj.Img.height;
         this.tiptext = obj.Tiptext;
@@ -2985,11 +3004,10 @@ Keybind = new function () {
         this[38] = function () { lyric && applyDelta(prop.Panel.MouseWheelDelta); }; // Up
         this[40] = function () { lyric && applyDelta(-prop.Panel.MouseWheelDelta); }; // Down
         this[67] = function () { // C
-            if (on_key_down.Ctrl) copyLyric(); // (+Ctrl)
-            else if (!on_key_down.Ctrl) return false; // Ctrlが押されていない状態でこのメソッドが呼ばれたことを呼び出し元に明示する
+            utils.IsKeyPressed(VK_CONTROL) && copyLyric(); // (+Ctrl)
         };
         this[86] = function () { // V
-            if (on_key_down.Ctrl && fb.IsPlaying) { // (+Ctrl)
+            if (utils.IsKeyPressed(VK_CONTROL) && fb.IsPlaying) { // (+Ctrl)
                 getLyricFromClipboard();
                 if (prop.Save.ClipbordAutoSaveTo) {
                     if (/^Tag$/i.test(prop.Save.ClipbordAutoSaveTo))
@@ -2998,7 +3016,6 @@ Keybind = new function () {
                         saveToFile(parse_path + (filetype === "lrc" ? ".lrc" : ".txt"));
                 }
             }
-            else if (!on_key_down.Ctrl) return false; // Ctrlが押されていない状態でこのメソッドが呼ばれたことを呼び出し元に明示する
         };
     };
 
@@ -3045,16 +3062,19 @@ Keybind = new function () {
         keynum = prop.Panel.Keybind["SeekToTop"];
         this[keynum] = commands["SeekToTop"];
 
+        keynum = prop.Edit.Keybind["AheadBy3Seconds"];
+        this[keynum] = function () { fb.PlaybackTime += 3; };
+        keynum = prop.Edit.Keybind["BackBy3Seconds"];
+        this[keynum] = function () { fb.PlaybackTime -= 3; };
+
         this[13] = function () { !prop.Edit.View && Edit.moveNextLine(); }; // Enter
         this[33] = function () { !prop.Edit.View && Edit.undo(); }; // Page Up
-        this[37] = function () { fb.PlaybackTime -= 3; }; // Left
-        this[39] = function () { fb.PlaybackTime += 3; }; // Right
         this[38] = function () { // Up
-            if (on_key_down.Shift) Edit.offsetTime(5); // (+Shift)
+            if (utils.IsKeyPressed(VK_SHIFT)) Edit.offsetTime(5); // (+Shift)
             else Edit.adjustTime(-5);
         };
         this[40] = function () { // Down
-            if (on_key_down.Shift) Edit.offsetTime(-5); // (+Shift)
+            if (utils.IsKeyPressed(VK_SHIFT)) Edit.offsetTime(-5); // (+Shift)
             else Edit.adjustTime(5);
         };
     };
@@ -3078,14 +3098,14 @@ Menu = new function () {
     //============
     var submenu_Copy = [ // normal item
         {
-            Flag: MF_STRING,
+            Flag: function () { return lyric ? MF_STRING : MF_GRAYED; },
             Caption: Label.CopyWith + "\tCtrl+C",
             Func: function () {
                 copyLyric();
             }
         },
         {
-            Flag: MF_STRING,
+            Flag: function () { return lyric ? MF_STRING : MF_GRAYED; },
             Caption: Label.CopyWithout,
             Func: function () {
                 copyLyric(true);
@@ -3095,10 +3115,49 @@ Menu = new function () {
             Flag: MF_SEPARATOR
         },
         {
-            Flag: MF_STRING,
-            Caption: Label.CopyOnePrevious,
+            Flag: MF_GRAYED,
+            Caption: "[Previous]",
+        },
+        {
+            Flag: function () { return !lyric && backupLyric[0] ? MF_STRING : null; },
+            Caption: function () { return (backupLyric[0] && backupLyric[0].replace(alltagsRE, "").replace(/\[\w+?:.+?\]|\s/g, " ").trim().slice(0, 20)) + "..."; },
             Func: function () {
-                backupLyric && setClipboard(backupLyric);
+                setClipboard(backupLyric[0]);
+            }
+        },
+        {
+            Flag: function () { return backupLyric[1] ? MF_STRING : null; },
+            Caption: function () { return ">" + (backupLyric[1] && backupLyric[1].replace(alltagsRE, "").replace(/\[\w+?:.+?\]|\s/g, " ").trim().slice(0, 20)) + "..."; },
+            Func: function () {
+                setClipboard(backupLyric[1]);
+            }
+        },
+        {
+            Flag: function () { return backupLyric[2] ? MF_STRING : null; },
+            Caption: function () { return ">>" + (backupLyric[2] && backupLyric[2].replace(alltagsRE, "").replace(/\[\w+?:.+?\]|\s/g, " ").trim().slice(0, 19)) + "..."; },
+            Func: function () {
+                setClipboard(backupLyric[2]);
+            }
+        },
+        {
+            Flag: function () { return backupLyric[3] ? MF_STRING : null; },
+            Caption: function () { return ">>>" + (backupLyric[3] && backupLyric[3].replace(alltagsRE, "").replace(/\[\w+?:.+?\]|\s/g, " ").trim().slice(0, 19)) + "..."; },
+            Func: function () {
+                setClipboard(backupLyric[3]);
+            }
+        },
+        {
+            Flag: function () { return backupLyric[4] ? MF_STRING : null; },
+            Caption: function () { return ">>>>" + (backupLyric[4] && backupLyric[4].replace(alltagsRE, "").replace(/\[\w+?:.+?\]|\s/g, " ").trim().slice(0, 18)) + "..."; },
+            Func: function () {
+                setClipboard(backupLyric[4]);
+            }
+        },
+        {
+            Flag: function () { return backupLyric[5] ? MF_STRING : null; },
+            Caption: function () { return ">>>>>" + (backupLyric[5] && backupLyric[5].replace(alltagsRE, "").replace(/\[\w+?:.+?\]|\s/g, " ").trim().slice(0, 18)) + "..."; },
+            Func: function () {
+                setClipboard(backupLyric[5]);
             }
         }
     ];
@@ -3171,6 +3230,7 @@ Menu = new function () {
 
     var submenu_Display = [ // check/uncheck item
         {
+            Flag: function () { return prop.Style.EnableStyleTextRender ? MF_CHECKED : MF_UNCHECKED; },
             Caption: Label.StyleTextRender,
             Func: function () {
                 window.SetProperty("Style.EnableStyleTextRender", prop.Style.EnableStyleTextRender = !prop.Style.EnableStyleTextRender);
@@ -3180,6 +3240,7 @@ Menu = new function () {
             }
         },
         {
+            Flag: function () { return prop.Style.Font_Bold ? MF_CHECKED : MF_UNCHECKED; },
             Caption: Label.Bold,
             Func: function () {
                 window.SetProperty("Style.Font-Bold", prop.Style.Font_Bold = !prop.Style.Font_Bold);
@@ -3190,6 +3251,7 @@ Menu = new function () {
             }
         },
         {
+            Flag: function () { return prop.Style.Shadow ? MF_CHECKED : MF_UNCHECKED; },
             Caption: Label.Shadow,
             Func: function () {
                 window.SetProperty("Style.Text-Shadow", prop.Style.Shadow = !prop.Style.Shadow);
@@ -3199,6 +3261,7 @@ Menu = new function () {
             }
         },
         {
+            Flag: function () { return prop.Style.Font_Italic ? MF_CHECKED : MF_UNCHECKED; },
             Caption: Label.Italic,
             Func: function () {
                 window.SetProperty("Style.Font-Italic", prop.Style.Font_Italic = !prop.Style.Font_Italic);
@@ -3209,6 +3272,7 @@ Menu = new function () {
             }
         },
         {
+            Flag: function () { return prop.Panel.BackgroundEnable ? MF_CHECKED : MF_UNCHECKED; },
             Caption: Label.BEnable,
             Func: function () {
                 window.SetProperty("Panel.Background.Enable", prop.Panel.BackgroundEnable = !prop.Panel.BackgroundEnable);
@@ -3224,6 +3288,7 @@ Menu = new function () {
             }
         },
         {
+            Flag: function () { return prop.Panel.BackgroundBlur ? MF_CHECKED : MF_UNCHECKED; },
             Caption: Label.BBlur,
             Func: function () {
                 window.SetProperty("Panel.Background.Blur", prop.Panel.BackgroundBlur = !prop.Panel.BackgroundBlur);
@@ -3237,6 +3302,7 @@ Menu = new function () {
             }
         },
         {
+            Flag: function () { return prop.Panel.MouseWheelSmoothing ? MF_CHECKED : MF_UNCHECKED; },
             Caption: Label.WheelSmoothing,
             Func: function () {
                 window.SetProperty("Panel.MouseWheelSmoothing", prop.Panel.MouseWheelSmoothing = !prop.Panel.MouseWheelSmoothing);
@@ -3244,6 +3310,7 @@ Menu = new function () {
             }
         },
         {
+            Flag: function () { return prop.Style.Fading ? MF_CHECKED : MF_UNCHECKED; },
             Caption: Label.Fading,
             Func: function () {
                 window.SetProperty("Style.Fading", prop.Style.Fading = !prop.Style.Fading);
@@ -3255,6 +3322,7 @@ Menu = new function () {
             Flag: MF_SEPARATOR
         },
         {
+            Flag: function () { return prop.Style.Highline ? MF_CHECKED : MF_UNCHECKED; },
             Caption: Label.Highline,
             Func: function () {
                 window.SetProperty("Style.HighlineColor for unsynced lyrics", prop.Style.Highline = !prop.Style.Highline);
@@ -3263,6 +3331,7 @@ Menu = new function () {
             }
         },
         {
+            Flag: function () { return prop.Panel.ExpandRepetition ? MF_CHECKED : MF_UNCHECKED; },
             Caption: Label.ExpandR,
             Func: function () {
                 window.SetProperty("Panel.ExpandRepetition", prop.Panel.ExpandRepetition = !prop.Panel.ExpandRepetition);
@@ -3273,6 +3342,7 @@ Menu = new function () {
             Flag: MF_SEPARATOR
         },
         {
+            Flag: function () { return prop.Panel.Contain ? MF_CHECKED : MF_UNCHECKED; },
             Caption: Label.Contain,
             Func: function () {
                 window.SetProperty("Panel.LRC.ContainNormalLines", prop.Panel.Contain = !prop.Panel.Contain);
@@ -3280,6 +3350,7 @@ Menu = new function () {
             }
         },
         {
+            Flag: function () { return prop.Panel.ScrollToCenter ? MF_CHECKED : MF_UNCHECKED; },
             Caption: Label.ScrollToCenter,
             Func: function () {
                 window.SetProperty("Panel.LRC.ScrollToCenter", prop.Panel.ScrollToCenter = !prop.Panel.ScrollToCenter);
@@ -3287,6 +3358,7 @@ Menu = new function () {
             }
         },
         {
+            Flag: function () { return prop.Style.FadeInPlayingColor ? MF_CHECKED : MF_UNCHECKED; },
             Caption: Label.FadeInPlayingColor,
             Func: function () {
                 window.SetProperty("Style.FadeInPlayingColor", prop.Style.FadeInPlayingColor = !prop.Style.FadeInPlayingColor);
@@ -3295,6 +3367,7 @@ Menu = new function () {
             }
         },
         {
+            Flag: function () { return prop.Style.KeepPlayingColor ? MF_CHECKED : MF_UNCHECKED; },
             Caption: Label.KeepPlayingColor,
             Func: function () {
                 window.SetProperty("Style.KeepPlayingColor", prop.Style.KeepPlayingColor = !prop.Style.KeepPlayingColor);
@@ -3373,24 +3446,38 @@ Menu = new function () {
         return items;
     }
 
-    if (plugins) {
-        var submenu_Plugins = createPluginMenuItems(plugins); // normal item
-    }
+    var submenu_Plugins = createPluginMenuItems(plugins); // normal item
 
     function createPluginMenuItems(plugins) {
-        var items = [], item, i = 1, FunctionKey = 111;
+        var items = [], item;
         for (var name in plugins) {
+            if (!plugins[name].label) // Do not build to menu item if label is not set.
+                continue;
             item = {};
             item["Flag"] = MF_STRING;
-            item["Caption"] = plugins[name].label + (i < 10 ? ("\tF" + i) : "");
+            item["Caption"] = plugins[name].label;
             item["Func"] = function () { if (plugins[arguments.callee.name].onCommand instanceof Function) plugins[arguments.callee.name].onCommand(); };
             item.Func.name = name;
             plugins[name].menuitem = item;
             items.push(item);
-            if (i < 10) // Set Keybind_up (F1～F9) 
-                Keybind.LyricShow_keyup[FunctionKey + i++] = item.Func;
-        }
 
+            for (var i = 0; i < prop.Plugin.FunctionKey.length; i++) { // Set Keybind_up (F1～F9) 
+                if (prop.Plugin.FunctionKey[i].trim() === name) {
+                    item.Caption += "\tF" + (i + 1);
+                    Keybind.LyricShow_keyup[112 + i] = item.Func;
+                }
+            }
+        }
+        items.push(
+            {
+                Flag: MF_SEPARATOR
+            },
+            {
+                Flag: MF_STRING,
+                Caption: Label.OpenPluginsFolder,
+                Func: function () { FuncCommand(scriptdir + "plugins\\"); }
+            }
+        );
         return items;
     }
 
@@ -3399,6 +3486,7 @@ Menu = new function () {
     //=============
     var menu_LyricShow = [
         {
+            Flag: function () { return fb.IsPlaying ? MF_STRING : MF_GRAYED; },
             Caption: Label.Refresh,
             Func: main
         },
@@ -3406,6 +3494,7 @@ Menu = new function () {
             Flag: MF_SEPARATOR
         },
         {
+            Flag: function () { return lyric ? MF_STRING : MF_GRAYED; },
             Caption: Label.Edit,
             Func: function () {
                 Edit.start();
@@ -3415,7 +3504,8 @@ Menu = new function () {
             Flag: MF_SEPARATOR
         },
         {
-            Caption: null,
+            Flag: function () { return lyric ? MF_STRING : MF_GRAYED; },
+            Caption: function () { return prop.Panel.AutoScroll ? Label.ForbidAutoScroll : Label.AllowAutoScroll },
             Func: function () {
                 window.SetProperty("Panel.AutoScroll", prop.Panel.AutoScroll = !prop.Panel.AutoScroll);
                 movable = prop.Panel.AutoScroll;
@@ -3425,9 +3515,10 @@ Menu = new function () {
             }
         },
         {
+            Flag: function () { return filetype === "lrc" ? MF_STRING : MF_GRAYED; },
             Caption: Label.ChangeScroll,
             Sub: submenu_ScrollType,
-            Radio: null
+            Radio: function () { return prop.Panel.ScrollType - 1; } // radio number begin with 0
         },
         {
             Flag: MF_SEPARATOR
@@ -3441,18 +3532,34 @@ Menu = new function () {
             Flag: MF_STRING,
             Caption: Label.Align,
             Sub: submenu_Align,
-            Radio: null
+            Radio: function () { // radio number begin with 0
+                switch (Number(window.GetProperty("Style.Align"))) {
+                    case 0: return 0; // Left
+                    case 1: return 3; // Center
+                    case 2: return 6; // Right
+                    case 3: return 1; // Left_Center
+                    case 4: return 2; // Center_Left
+                    case 5: return 4; // Center_Right
+                    case 6: return 5; // Right_Center
+                }
+            }
         },
         {
             Flag: MF_STRING,
             Caption: Label.Color,
             Sub: submenu_Color_LyricShow,
-            Radio: null
+            Radio: function () { // radio number begin with 0
+                for (var i = 0; i < submenu_Color_LyricShow.length; i++) {
+                    if (submenu_Color_LyricShow[i].Caption === prop.Style.CSLS)
+                        return i;
+                }
+            }
         },
         {
             Flag: MF_SEPARATOR
         },
         {
+            Flag: function () { return lyric ? MF_STRING : MF_GRAYED; },
             Caption: Label.About,
             Func: function () {
                 if (!lyric) return;
@@ -3478,16 +3585,19 @@ Menu = new function () {
             }
         },
         {
+            Flag: function () { return lyric || backupLyric[0] ? MF_STRING : MF_GRAYED; },
             Caption: Label.Copy,
             Sub: submenu_Copy
         },
         {
+            Flag: function () { return lyric ? MF_STRING : MF_GRAYED; },
             Caption: Label.SaveToTag,
             Func: function () {
                 saveToTag(getFieldName());
             }
         },
         {
+            Flag: function () { return lyric ? MF_STRING : MF_GRAYED; },
             Caption: Label.SaveToFile,
             Func: function () {
                 saveToFile(parse_path + (filetype === "lrc" ? ".lrc" : ".txt"));
@@ -3497,6 +3607,7 @@ Menu = new function () {
             Flag: MF_SEPARATOR
         },
         {
+            Flag: function () { return fb.IsPlaying ? MF_STRING : MF_GRAYED; },
             Caption: Label.GetClipboard + "\tCtrl+V",
             Func: function () {
                 getLyricFromClipboard();
@@ -3509,6 +3620,7 @@ Menu = new function () {
             }
         },
         {
+            Flag: function () { return fb.IsPlaying ? MF_STRING : MF_GRAYED; },
             Caption: Label.Open,
             Func: function () {
                 var filter = "Lyric Files(*.lrc;*.txt)|*.txt;*.lrc|LRC Files(*.lrc)|*.lrc|Text Files(*.txt)|*.txt";
@@ -3521,6 +3633,7 @@ Menu = new function () {
             Flag: MF_SEPARATOR
         },
         {
+            Flag: function () { return path ? MF_STRING : MF_GRAYED; },
             Caption: Label.OpenIn,
             Func: function () {
                 if (path) {
@@ -3532,6 +3645,7 @@ Menu = new function () {
             }
         },
         {
+            Flag: function () { return fb.IsPlaying ? MF_STRING : MF_GRAYED; },
             Caption: Label.OpenFolder,
             Func: function () {
                 if (path)
@@ -3539,33 +3653,46 @@ Menu = new function () {
                 else if (directory)
                     FuncCommand(directory);
             }
-        }
-    ];
-
-    var menu_Edit = [
-        {
-            Caption: Label.View,
-            Func: Edit.switchView
         },
         {
             Flag: MF_SEPARATOR
         },
         {
-            Caption: Label.LyricShow,
+            Flag: MF_STRING,
+            Caption: Label.Plugins,
+            Sub: submenu_Plugins
+        }
+    ];
+
+
+    var menu_Edit = [
+        {
+            Flag: function () { return prop.Edit.View ? MF_CHECKED : MF_UNCHECKED; },
+            Caption: Label.View,
             Func: function () {
-                main();
+                Edit.switchView();
             }
         },
         {
             Flag: MF_SEPARATOR
         },
         {
+            Flag: MF_STRING,
+            Caption: Label.LyricShow,
+            Func: main
+        },
+        {
+            Flag: MF_SEPARATOR
+        },
+        {
+            Flag: function () { return (prop.Edit.View && Edit.View.i === lyric.text.length) ? MF_STRING : MF_GRAYED; },
             Caption: Label.SaveToTag,
             Func: function () {
                 saveToTag(getFieldName());
             }
         },
         {
+            Flag: function () { return (prop.Edit.View && Edit.View.i === lyric.text.length) ? MF_STRING : MF_GRAYED; },
             Caption: Label.SaveToFile,
             Func: function () {
                 saveToFile(parse_path + ".lrc");
@@ -3575,18 +3702,21 @@ Menu = new function () {
             Flag: MF_SEPARATOR
         },
         {
+            Flag: MF_STRING,
             Caption: Label.EditLine,
             Func: function () {
                 Edit.controlLine(2);
             }
         },
         {
+            Flag: function () { return prop.Edit.View ? MF_GRAYED : MF_STRING; },
             Caption: Label.InsertLine,
             Func: function () {
                 Edit.controlLine(1);
             }
         },
         {
+            Flag: function () { return prop.Edit.View ? MF_GRAYED : MF_STRING; },
             Caption: Label.DeleteLine,
             Func: function () {
                 Edit.controlLine(-1);
@@ -3599,9 +3729,15 @@ Menu = new function () {
             Flag: MF_STRING,
             Caption: Label.Color,
             Sub: submenu_Color_Edit,
-            Radio: null
+            Radio: function () { // radio number begin with 0
+                for (var i = 0; i < submenu_Color_Edit.length; i++) {
+                    if (submenu_Color_Edit[i].Caption === prop.Style.CSE)
+                        return i;
+                }
+            }
         },
         {
+            Flag: function () { return prop.Edit.Rule ? MF_CHECKED : MF_UNCHECKED; },
             Caption: Label.Rule,
             Func: function () {
                 window.SetProperty("Edit.ShowRuledLine", prop.Edit.Rule = !prop.Edit.Rule);
@@ -3613,12 +3749,14 @@ Menu = new function () {
             Flag: MF_SEPARATOR
         },
         {
+            Flag: function () { return fs.FileExists(parse_path + ".txt") ? MF_STRING : MF_GRAYED; },
             Caption: Label.DeleteFile,
             Func: function () {
                 Edit.deleteFile(parse_path + ".txt");
             }
         }
     ];
+
 
     var common = [
         {
@@ -3639,51 +3777,31 @@ Menu = new function () {
             }
         },
         {
+            Flag: function () { return prop.Panel.HideConf ? null : MF_STRING; },
+            Caption: Label.Conf,
+            Func: function () {
+                window.ShowConfigure();
+            }
+        },
+        {
             Flag: MF_SEPARATOR
         },
-        { // mustn't add a item after this
-            Flag: MF_STRING,
+        { // Do not add items after this
+            Flag: function () { return fb.IsPlaying ? MF_STRING : MF_GRAYED; },
             Caption: "Now Playing",
             Sub: function (IMenuObj) {
                 var _context = fb.CreateContextMenuManager();
                 _context.InitNowPlaying();
-                _context.BuildMenu(IMenuObj, idx, -1);
+                _context.BuildMenu(IMenuObj, buildMenu.idx, -1);
 
-                item_list._context = _context;
-                item_list._contextIdx = idx;
+                buildMenu.item_list._context = _context;
+                buildMenu.item_list._contextIdx = buildMenu.idx;
             }
         }
     ];
 
-
-    if (submenu_Plugins) // Insert plugin items
-        menu_LyricShow = menu_LyricShow.concat(
-            {
-                Flag: MF_SEPARATOR
-            },
-            {
-                Flag: MF_STRING,
-                Caption: Label.Plugins,
-                Sub: submenu_Plugins
-            }
-        );
-
     menu_LyricShow = menu_LyricShow.concat(common); // Insert common menuitems
     menu_Edit = menu_Edit.concat(common);
-
-    if (!prop.Panel.Conf) { // Insert "Configure" item
-        var conf = [
-            {
-                Flag: MF_STRING,
-                Caption: Label.Conf,
-                Func: function () { window.ShowConfigure(); }
-            }
-        ];
-        var temp = menu_LyricShow.splice(menu_LyricShow.length - 2, 2);
-        menu_LyricShow = menu_LyricShow.concat(conf).concat(temp);
-        temp = menu_Edit.splice(menu_Edit.length - 2, 2);
-        menu_Edit = menu_Edit.concat(conf).concat(temp);
-    }
 
 
     var menu_Save = [
@@ -3709,136 +3827,38 @@ Menu = new function () {
     //========
     this.LyricShow = {
         id: "LyricShow",
-        items: menu_LyricShow,
-        refresh: function () {
-            submenu_Display[0].Flag = prop.Style.EnableStyleTextRender ? MF_CHECKED : MF_UNCHECKED;
-            submenu_Display[1].Flag = prop.Style.Font_Bold ? MF_CHECKED : MF_UNCHECKED;
-            submenu_Display[2].Flag = prop.Style.Shadow ? MF_CHECKED : MF_UNCHECKED;
-            submenu_Display[3].Flag = prop.Style.Font_Italic ? MF_CHECKED : MF_UNCHECKED;
-            submenu_Display[4].Flag = prop.Panel.BackgroundEnable ? MF_CHECKED : MF_UNCHECKED;
-            submenu_Display[5].Flag = prop.Panel.BackgroundBlur ? MF_CHECKED : MF_UNCHECKED;
-            submenu_Display[6].Flag = prop.Panel.MouseWheelSmoothing ? MF_CHECKED : MF_UNCHECKED;
-            submenu_Display[7].Flag = prop.Style.Fading ? MF_CHECKED : MF_UNCHECKED;
-            submenu_Display[9].Flag = prop.Style.Highline ? MF_CHECKED : MF_UNCHECKED;
-            submenu_Display[10].Flag = prop.Panel.ExpandRepetition ? MF_CHECKED : MF_UNCHECKED;
-            submenu_Display[12].Flag = prop.Panel.Contain ? MF_CHECKED : MF_UNCHECKED;
-            submenu_Display[13].Flag = prop.Panel.ScrollToCenter ? MF_CHECKED : MF_UNCHECKED;
-            submenu_Display[14].Flag = prop.Style.FadeInPlayingColor ? MF_CHECKED : MF_UNCHECKED;
-            submenu_Display[15].Flag = prop.Style.KeepPlayingColor ? MF_CHECKED : MF_UNCHECKED;
-
-            menu_LyricShow[5].Radio = prop.Panel.ScrollType - 1; // radio number begin with 0
-            switch (Number(window.GetProperty("Style.Align"))) {
-                case 0: // Left
-                    menu_LyricShow[8].Radio = 0; break;
-                case 1: // Center
-                    menu_LyricShow[8].Radio = 3; break;
-                case 2: // Right
-                    menu_LyricShow[8].Radio = 6; break;
-                case 3: // Left_Center
-                    menu_LyricShow[8].Radio = 1; break;
-                case 4: // Center_Left
-                    menu_LyricShow[8].Radio = 2; break;
-                case 5: // Center_Right
-                    menu_LyricShow[8].Radio = 4; break;
-                case 6: // Right_Center
-                    menu_LyricShow[8].Radio = 5; break;
-            }
-            switch (prop.Style.CSLS) {
-                case "white":
-                    menu_LyricShow[9].Radio = 0; break;
-                case "black":
-                    menu_LyricShow[9].Radio = 1; break;
-                case "user":
-                    menu_LyricShow[9].Radio = 2; break;
-            }
-            switch (prop.Style.DrawingMethod) {
-                case 0:
-                    menu_LyricShow[10].Radio = 0; break;
-                case 1:
-                    menu_LyricShow[10].Radio = 1; break;
-                case 2:
-                    menu_LyricShow[10].Radio = 2; break;
-            }
-            menu_LyricShow[19].Flag = path ? MF_STRING : MF_GRAYED;
-            menu_LyricShow[4].Caption = prop.Panel.AutoScroll ? Label.ForbidAutoScroll : Label.AllowAutoScroll;
-
-            if (lyric) {
-                menu_LyricShow[2].Flag = MF_STRING;
-                menu_LyricShow[4].Flag = MF_STRING;
-                menu_LyricShow[5].Flag = filetype === "lrc" ? MF_STRING : MF_GRAYED;
-                menu_LyricShow[11].Flag = MF_STRING;
-                menu_LyricShow[12].Flag = MF_STRING;
-                menu_LyricShow[13].Flag = MF_STRING;
-                menu_LyricShow[14].Flag = MF_STRING;
-            }
-            else {
-                menu_LyricShow[2].Flag = menu_LyricShow[4].Flag = menu_LyricShow[5].Flag = menu_LyricShow[11].Flag = menu_LyricShow[12].Flag = menu_LyricShow[13].Flag = menu_LyricShow[14].Flag = MF_GRAYED;
-            }
-
-            if (fb.IsPlaying) {
-                menu_LyricShow[0].Flag = MF_STRING;
-                menu_LyricShow[16].Flag = MF_STRING;
-                menu_LyricShow[17].Flag = MF_STRING;
-                menu_LyricShow[20].Flag = MF_STRING;
-            }
-            else
-                menu_LyricShow[0].Flag = menu_LyricShow[16].Flag = menu_LyricShow[17].Flag = menu_LyricShow[20].Flag = MF_GRAYED;
-        }
+        items: menu_LyricShow
     };
 
     this.Edit = {
         id: "Edit",
-        items: menu_Edit,
-        refresh: function () {
-            menu_Edit[0].Flag = prop.Edit.View ? MF_CHECKED : MF_UNCHECKED;
-            menu_Edit[4].Flag = (prop.Edit.View && Edit.View.i === lyric.text.length) ? MF_STRING : MF_GRAYED;
-            menu_Edit[5].Flag = (prop.Edit.View && Edit.View.i === lyric.text.length) ? MF_STRING : MF_GRAYED;
-            menu_Edit[8].Flag = prop.Edit.View ? MF_GRAYED : MF_STRING;
-            menu_Edit[9].Flag = prop.Edit.View ? MF_GRAYED : MF_STRING;
-            switch (prop.Style.CSE) {
-                case "white":
-                    menu_Edit[11].Radio = 0; break;
-                case "black":
-                    menu_Edit[11].Radio = 1; break;
-                case "user":
-                    menu_Edit[11].Radio = 2; break;
-            }
-            menu_Edit[12].Flag = prop.Edit.Rule ? MF_CHECKED : MF_UNCHECKED;
-            menu_Edit[14].Flag = fs.FileExists(parse_path + ".txt") ? MF_STRING : MF_GRAYED;
-        }
+        items: menu_Edit
     };
 
     this.Save = {
         id: "Save",
-        items: menu_Save,
-        refresh: function () { }
+        items: menu_Save
     };
 
     this.Plugins = {
         id: "Plugins",
-        items: submenu_Plugins,
-        refresh: function () { }
+        items: submenu_Plugins
     };
 
     //=====
     //  build
     //=====
     this.build = function (mobj) {
-        this.init();
+        _menu && _menu.Dispose();
+
         mobj = mobj || this.LyricShow;
-        mobj.refresh();
         _menu = buildMenu(mobj.items);
         this.id = mobj.id;
     };
 
-    this.init = function () {
-        _menu && _menu.Dispose();
-        item_list = {};
-        idx = 1;
-    };
-
     this.show = function (x, y) {
         Lock_MiddleButton = true;
+        var item_list = buildMenu.item_list;
         var ret = _menu.TrackPopupMenu(x, y);
         //console(ret);
         if (ret !== 0) {
@@ -3856,7 +3876,7 @@ Menu = new function () {
 
     this.addToMenu_LyricShow = function (items) {
         var temp = menu_LyricShow.splice(menu_LyricShow.length - 2, 2);
-        menu_LyricShow = menu_LyricShow.concat(items).concat(temp);
+        menu_LyricShow = menu_LyricShow.concat(items, temp);
         this.LyricShow.items = menu_LyricShow;
     };
 };
@@ -4052,7 +4072,7 @@ function on_mouse_lbtn_down(x, y, mask) {
                 return;
     }
     if (!prop.Edit.Start) {
-        if (mask === 5) { // Shift key
+        if (utils.IsKeyPressed(VK_SHIFT)) {
             if (fb.IsPlaying && prop.Panel.InfoPath) {
                 if (!infoPath) {
                     infoPath = fb.TitleFormat(prop.Panel.InfoPath).Eval().split("||");
@@ -4077,10 +4097,10 @@ function on_mouse_lbtn_down(x, y, mask) {
             fb.PlaybackTime -= 3;
         else if (rarea_seek)
             fb.PlaybackTime += 3;
-        else if (mask === 9)
+        else if (utils.IsKeyPressed(VK_CONTROL))
             fs.FileExists(parse_path + ".txt") && Edit.deleteFile(parse_path + ".txt");
         else if (!prop.Edit.View) {
-            if (mask === 5)
+            if (utils.IsKeyPressed(VK_SHIFT))
                 Edit.controlLine(0);
             else if (y < TextHeight * 2 + g_y)
                 Edit.undo();
@@ -4106,7 +4126,7 @@ function on_mouse_lbtn_up(x, y, mask) {
             }
         }
     }
-    else if (Buttons.CurrentButton)
+    else if (Buttons.CurrentButton && Buttons.CurrentButton.isMouseOver(x, y))
         Buttons.CurrentButton.Func();
 }
 
@@ -4139,13 +4159,17 @@ function on_mouse_mbtn_dblclk(x, y, mask) {
 
 function on_mouse_wheel(step) {
     if (!prop.Edit.Start) {
-        if (on_key_down.Ctrl) {
+        if (utils.IsKeyPressed(VK_CONTROL)) {
             if (step === 1 && prop.Style.Font_Size >= 48 || step === -1 && prop.Style.Font_Size <= 10)
                 return;
             window.SetProperty("Style.Font-Size", prop.Style.Font_Size += step);
             prop.Style.Font = gdi.Font(prop.Style.Font_Family, prop.Style.Font_Size, (prop.Style.Font_Bold ? 1 : 0) + (prop.Style.Font_Italic ? 2 : 0));
-            refreshDrawStyle();
-            lyric && LyricShow.searchLine(fb.PlaybackTime);
+            if (prop.Style.EnableStyleTextRender) {
+                refreshDrawStyle.clearTimeout();
+                refreshDrawStyle.timeout(400);
+            }
+            else
+                refreshDrawStyle();
             StatusBar.setText("Font Size : " + prop.Style.Font_Size);
             StatusBar.show(3000);
         }
@@ -4168,7 +4192,7 @@ function on_mouse_wheel(step) {
 }
 
 function on_mouse_rbtn_up(x, y, mask) {
-    if (mask === 4) // Shift key
+    if (utils.IsKeyPressed(VK_SHIFT))
         return;
     else {
         !Lock && Menu.show(x, y);
@@ -4179,29 +4203,20 @@ function on_mouse_rbtn_up(x, y, mask) {
 function on_key_down(vkey) {
     //console(vkey);
     var prevent_shortcuts;
-    if (vkey === 16)
-        !on_key_down.Shift && (on_key_down.Shift = true);
-    else if (vkey === 17)
-        !on_key_down.Ctrl && (on_key_down.Ctrl = true);
-    else if (!prop.Edit.Start) {
-        prevent_shortcuts = Keybind.LyricShow_keydown[vkey] && Keybind.LyricShow_keydown[vkey]();
-        if (typeof prevent_shortcuts === "undefined")
-            prevent_shortcuts = Boolean(Keybind.LyricShow_keydown[vkey] || Keybind.LyricShow_keyup[vkey]);
+    if (!prop.Edit.Start) {
+        Keybind.LyricShow_keydown[vkey] && Keybind.LyricShow_keydown[vkey]();
+        prevent_shortcuts = Boolean(Keybind.LyricShow_keydown[vkey] || Keybind.LyricShow_keyup[vkey]);
     }
     else if (!Lock) {
         Keybind.Edit_keydown[vkey] && Keybind.Edit_keydown[vkey]();
         prevent_shortcuts = Boolean(Keybind.Edit_keydown[vkey] || Keybind.Edit_keyup[vkey]);
     }
 
-    return prevent_shortcuts; // prevent keyboard shortcuts
+    return prevent_shortcuts;
 }
 
 function on_key_up(vkey) {
-    if (vkey === 16)
-        on_key_down.Shift = false;
-    else if (vkey === 17)
-        on_key_down.Ctrl = false;
-    else if (!prop.Edit.Start)
+    if (!prop.Edit.Start)
         Keybind.LyricShow_keyup[vkey] && Keybind.LyricShow_keyup[vkey]();
     else if (!Lock)
         Keybind.Edit_keyup[vkey] && Keybind.Edit_keyup[vkey]();

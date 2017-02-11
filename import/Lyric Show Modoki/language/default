@@ -11,6 +11,7 @@
 	FailedToSaveLyricsToTag = Couldn't save lyrics to tag.
 	FailedToReadText = Couldn't read the text.
 	GetClipboard = Pasted.
+	LargeFieldsConfig = Lyric Show Modoki displays only a dot and nothing more.\n\nYou need to replace LargeFieldsConfig.txt.\nFor details, please read\nhttp://ashiato1.blog62.fc2.com/blog-entry-64.html#comment148
 [Label]
 	Prop = Properties...
 	Help = Help
@@ -20,6 +21,7 @@
 	Open = Open...
 	OpenIn = Open with editor
 	OpenFolder = Open folder
+	OpenPluginsFolder = Open plugins folder
 	SaveToTag = Save to tag
 	SaveToFile = Save to file
 	Refresh = Refresh
@@ -35,7 +37,6 @@
 	Copy = Copy
 	CopyWith = Copy with timetag
 	CopyWithout = Copy without timetag
-	CopyOnePrevious = Copy one previous lyrics
 	GetClipboard = Paste
 	Align = Align
 	Align_Left = Left
