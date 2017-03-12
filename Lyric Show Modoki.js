@@ -3,7 +3,7 @@
 
 // ==PREPROCESSOR==
 // @name "Lyric Show Modoki"
-// @version "1.6.8-Mod-20170211"
+// @version "1.6.8-Mod-20170312"
 // @author "tomato111"
 // @import "%fb2k_profile_path%import\common\lib.js"
 // ==/PREPROCESSOR==
@@ -23,7 +23,7 @@ var fs = new ActiveXObject("Scripting.FileSystemObject"); // File System Object
 var ws = new ActiveXObject("WScript.Shell"); // WScript Shell Object
 var Trace = new TraceLog();
 var scriptName = "Lyric Show Modoki";
-var scriptVersion = "1.6.8-Mod-20170211";
+var scriptVersion = "1.6.8-Mod-20170312";
 var scriptdir = fb.ProfilePath + "import\\" + scriptName + "\\";
 var commondir = fb.ProfilePath + "import\\common\\";
 var down_pos = {};
@@ -347,7 +347,8 @@ prop = new function () {
         RunAfterSave: window.GetProperty("Save.RunAfterSave", ""),
         TimetagSign: window.GetProperty("Save.Timetag[12:34:56]", false),
         ClipbordAutoSaveTo: window.GetProperty("Save.GetClipbord.AutoSaveTo", ""),
-        iTunesMode: window.GetProperty("Save.iTunesMode", false)
+        iTunesMode: window.GetProperty("Save.iTunesMode", false),
+        Silent: window.GetProperty("Save.Silent", false)
     };
 
     if (!this.Save.CharacterCode || !/^(?:Unicode|Shift_JIS|EUC-JP|UTF-8|UTF-8N)$/i.test(this.Save.CharacterCode))
@@ -678,7 +679,7 @@ function saveToTag(fieldname, status, silent) {
             writeTagField(text, fieldname, meta);
             StatusBar.setText((status ? status : "") + Messages.SavedToTag.ret('"' + fieldname + '"'));
             StatusBar.show();
-            !silent && playSoundSimple(commondir + "finished.wav");
+            !prop.Save.Silent && !silent && playSoundSimple(commondir + "finished.wav");
         } catch (e) {
             Messages.FailedToSaveLyricsToTag.popup("\n" + e.message);
         }
@@ -701,7 +702,7 @@ function saveToFile(file, status, silent) {
             writeTextFile(text, file, prop.Save.CharacterCode);
             StatusBar.setText((status ? status : "") + Messages.Saved.ret(file));
             StatusBar.show();
-            !silent && playSoundSimple(commondir + "finished.wav");
+            !prop.Save.Silent && !silent && playSoundSimple(commondir + "finished.wav");
             FuncCommands(prop.Save.RunAfterSave, meta);
         } catch (e) {
             Messages.FailedToSaveLyricsToFile.popup("\n" + e.message);
