@@ -39,24 +39,27 @@
                 VL.showResults();
                 return;
             }
-            var AutoSaveTo = window.GetProperty('Plugin.Search.AutoSaveTo');
 
-            main(results[0].lyric);
-            status = 'src: ' + results[0].name;
-            if (results.length !== 1) {
-                status += ' (' + ++_this.i + '/' + results.length + ')' + " (Press 'Enter' to switch)";
-                results.push(results.shift());
-                if (_this.i === results.length) _this.i = 0;
-            }
-            if (VL.results.length) {
-                status += "\n (Press ']' to switch to ViewLyrics)";
-            }
-            StatusBar.showText(status);
+            if (results.length) {
+                var AutoSaveTo = window.GetProperty('Plugin.Search.AutoSaveTo');
 
-            if (/^Tag$/i.test(AutoSaveTo))
-                saveToTag(getFieldName(), status + '\n');
-            else if (/^File$/i.test(AutoSaveTo))
-                saveToFile(parse_path + (filetype === 'lrc' ? '.lrc' : '.txt'), status + '\n');
+                main(results[0].lyric);
+                status = 'src: ' + results[0].name;
+                if (results.length !== 1) {
+                    status += ' (' + ++_this.i + '/' + results.length + ')' + " (Press 'Enter' to switch)";
+                    results.push(results.shift());
+                    if (_this.i === results.length) _this.i = 0;
+                }
+                if (VL.results.length) {
+                    status += "\n (Press ']' to switch to ViewLyrics)";
+                }
+                StatusBar.showText(status);
+
+                if (/^Tag$/i.test(AutoSaveTo))
+                    saveToTag(getFieldName(), status + '\n');
+                else if (/^File$/i.test(AutoSaveTo))
+                    saveToFile(parse_path + (filetype === 'lrc' ? '.lrc' : '.txt'), status + '\n');
+            }
         };
 
         this.setAutoSearchPluginName = function (pname) {
