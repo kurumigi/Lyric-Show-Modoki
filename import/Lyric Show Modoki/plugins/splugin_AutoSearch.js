@@ -1,6 +1,6 @@
 ﻿pl = {
     name: 'splugin_AutoSearch',
-    label: prop.Panel.Lang == 'ja' ? '設定: 再生時に検索' : 'Setting: Auto Search',
+    label: prop.Panel.Lang === 'ja' ? '設定: 再生時に検索' : 'Setting: Auto Search',
     author: 'tomato111',
     onStartUp: function () { // 最初に一度だけ呼び出される
 
@@ -8,7 +8,7 @@
         var timeout_millisecond = 8000;
         var ResultsListNames = [this.name];
 
-        this.AvailablePluginNames = window.GetProperty('Plugin.Search.AutoSearch', 'dplugin_Miku_Hatsune_wiki, dplugin_Utamap, dplugin_Utanet, dplugin_Kashiget, dplugin_Kasitime, dplugin_AZLyrics, dplugin_Kashinavi, dplugin_Tube365, dplugin_ViewLyrics').split(/[ 　]*,[ 　]*/);
+        this.AvailablePluginNames = window.GetProperty('Plugin.Search.AutoSearch', 'dplugin_Miku_Hatsune_wiki, dplugin_Utamap, dplugin_Utanet, dplugin_Kashiget, dplugin_Kasitime, dplugin_AZLyrics, dplugin_Tube365, dplugin_ViewLyrics').split(/[ 　]*,[ 　]*/);
         for (var i = 0; i < this.AvailablePluginNames.length;) {
             var name = this.AvailablePluginNames[i];
             if (plugins[name]) {
