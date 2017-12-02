@@ -1,6 +1,6 @@
 ﻿pl = {
-    name: 'dplugin_Touhoukashi',
-    label: prop.Panel.Lang === 'ja' ? '歌詞検索: 東方同人CD' : 'Download Lyrics: Touhou Doujin CD',
+    name: 'dplugin_AniKasiPV',
+    label: prop.Panel.Lang === 'ja' ? '歌詞検索: アニ歌詞PV' : 'Download Lyrics: AniKasiPV',
     author: 'tomato111',
     onStartUp: function () { // 最初に一度だけ呼び出される
     },
@@ -31,16 +31,19 @@
         }
 
         StatusBar.showText((prop.Panel.Lang === 'ja' ? '検索中......' : 'Searching......') + label);
-        getHTML(null, 'GET', createQuery(title, ''), ASYNC, 0, onLoaded);
+        getHTML(null, 'GET', createQuery(title, artist), ASYNC, 0, onLoaded);
 
         //------------------------------------
 
         function createQuery(title, artist, id) {
             if (id)
-                return 'https://www31.atwiki.jp/touhoukashi/?pageid=' + id;
-            else
-                return 'https://www31.atwiki.jp/touhoukashi/search?andor=and&keyword='
-                    + encodeURIComponent(title).replaceEach("'", '%27', '\\(', '%28', '\\)', '%29', '%20', '+', '!', '%21', 'g');
+                return 'http://animationsong.com/archives/' + id + '.html';
+            else {
+                var FuzzySearchRE = /[-・×/／！？、]/g;  // 語句の先頭のハイフンは除外検索を意味するので置換する // あまり柔軟に結果を返してくれないのでいくつか空白に置換する
+                title = title.replace(FuzzySearchRE, ' ');
+                artist = artist.replace(FuzzySearchRE, ' ').replace(/cv[.:： ]/ig, ''); // CV:の表記は削った方が結果が良くなるので削る
+                return 'http://animationsong.com/?s=' + encodeURIComponent(title + ' ' + artist).replaceEach("'", '%27', '\\(', '%28', '\\)', '%29', '%20', '+', '!', '%21', 'g');
+            }
         }
 
         function onLoaded(request, depth, file) {
@@ -83,43 +86,52 @@
         }
 
         function AnalyzePage(res, depth) {
-            var tmpti, id, pageTitle;
+            var tmpti, id, pageTitle, backref;
 
-            var SearchRE = /<a href=".+?&amp;pageid=(.+?)" title="(?:\d{1,2})?[. ]?(.+?)" style=".+?">/ig; // $1:id, $2:pageTitle
+            var SearchRE = /<a href=".+?animationsong\.com\/archives\/(\d+)\.html" rel="bookmark">(.+?)<\/a>/ig; // $1:id, $2:pageTitle
             var FuzzyRE = /[-.'’&＆%％@＠～・×*＊+＋/／!！?？（）(),，、 　]/g;
 
-            var StartLyricRE = /<div>(アルバム：.+?)<\/div>.+?<div>(.+?)<div class="/i; // $1:info, $2:lyric
-            var IgnoreRE = /<\/div>|<a.+?>|<\/a>/ig;
-            var LineBreakRE = /<div>|<br ?\/?>/ig;
+            var InfoRE = /<tr><th>歌手<\/th><td>(.+?)<\/td><\/tr><tr><th>制作者<\/th><td>作詞：?(.+?)　?作曲：?(.+?)　?編曲：(.+?)<\/td><\/tr>/i; // $1:歌手, $2:作詞, $3:作曲, $4:編曲
+            var StartLyricRE = /<div class="kashitext"><h2>歌詞.*?<\/h2>(.+?)<\/div>/i;
+            var IgnoreRE = /<font.+?>|<\/font>/ig;
+            var LineBreakRE = /<br ?\/?>|<p>|<\/p>/ig;
             var LineFeedCode = prop.Save.LineFeedCode;
 
             if (depth === 1) { // lyric
                 res = res.replace(/[\t ]*(?:\r\n|\r|\n)[\t ]*/g, '');
+                onLoaded.info = title + LineFeedCode + LineFeedCode;
+
+                if (backref = res.match(InfoRE)) {
+                    if (backref[3] === '・')
+                        backref[3] = backref[4];
+                    if (backref[2] === '・')
+                        backref[2] = backref[3];
+
+                    onLoaded.info += ('作詞  ' + backref[2] + LineFeedCode
+                        + '作曲  ' + backref[3] + LineFeedCode
+                        + '編曲  ' + backref[4] + LineFeedCode
+                        + '唄  ' + backref[1] + LineFeedCode + LineFeedCode)
+                        .replace(/<a.+?>|<\/a>/ig, '')
+                        .decodeHTMLEntities();
+                }
+
                 if (StartLyricRE.test(res)) {
-                    onLoaded.info = title + LineFeedCode + LineFeedCode + RegExp.$1;
-                    this.lyrics = RegExp.$2
+                    this.lyrics = RegExp.$1
                         .replace(IgnoreRE, '')
                         .replace(LineBreakRE, LineFeedCode)
                         .decodeHTMLEntities()
                         .trim();
-
-                    onLoaded.info = onLoaded.info
-                        .replace(IgnoreRE, '')
-                        .replace(LineBreakRE, LineFeedCode)
-                        .decodeHTMLEntities()
-                        .trim() + LineFeedCode + LineFeedCode;
                 }
             }
             else { // search
                 tmpti = title.toLowerCase().replace(FuzzyRE, '');
                 while (SearchRE.exec(res) !== null) {
-                    debug_html && fb.trace('id: ' + RegExp.$1 + ' pageTitle: ' + RegExp.$2);
                     id = RegExp.$1;
                     pageTitle = RegExp.$2.decodeHTMLEntities().toLowerCase().replace(FuzzyRE, '');
 
-                    if (pageTitle === tmpti) {
+                    if (pageTitle.indexOf(tmpti) === 0 || pageTitle.indexOf('「' + tmpti) !== -1) { // 曲名が先頭にある場合(新しい記述)と「」で囲まれて末尾にある場合(古い記述)の2つがある
                         this.id = id;
-                        break;
+                        return;
                     }
                 }
             }
