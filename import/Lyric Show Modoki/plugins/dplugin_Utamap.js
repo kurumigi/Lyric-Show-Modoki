@@ -59,8 +59,10 @@
             var Page = new AnalyzePage(resArray, depth);
 
             if (Page.id) {
-                getHTML(null, 'GET', Page.url, !ASYNC, false, onLoaded);
-                getHTML(null, 'GET', createQuery(null, null, Page.id), ASYNC, true, onLoaded);
+                getHTML(null, 'GET', Page.url, ASYNC, false, function () {
+                    onLoaded.apply(null, arguments);
+                    getHTML(null, 'GET', createQuery(null, null, Page.id), ASYNC, true, onLoaded);
+                });
             }
             else if (Page.next) {
                 getHTML(null, 'GET', createQuery(title, ++depth), ASYNC, depth, onLoaded);
@@ -75,12 +77,8 @@
                 else {
                     main(text);
                     StatusBar.showText(prop.Panel.Lang == 'ja' ? '検索終了。歌詞を取得しました。' : 'Search completed.');
-                    var AutoSaveTo = window.GetProperty('Plugin.Search.AutoSaveTo');
 
-                    if (/^Tag$/i.test(AutoSaveTo))
-                        saveToTag(getFieldName());
-                    else if (/^File$/i.test(AutoSaveTo))
-                        saveToFile(parse_path + (filetype === 'lrc' ? '.lrc' : '.txt'));
+                    plugin_auto_save();
                 }
             }
             else if (onLoaded.info) { return; }
@@ -116,7 +114,6 @@
                 this.lyrics = '';
                 resArray[0] = resArray[0].replace(/^.+?&.+?=/, '');
                 for (i = 0; i < resArray.length; i++) {
-                    debug_html && fb.trace(i + ': ' + resArray[i]);
                     this.lyrics += resArray[i] + LineFeedCode;
                 }
                 this.lyrics = this.lyrics.trim();
@@ -127,7 +124,7 @@
                 for (i = 0; i < resArray.length; i++)
                     if (backref = resArray[i].match(SearchRE)) {
                         debug_html && fb.trace('class: ' + backref[1] + ', id: ' + backref[3] + ', innerText: ' + backref[4]);
-                        if (backref[1] === 'ct160' && backref[4].toLowerCase().replace(FuzzyRE, '') === tmpti) {
+                        if (backref[1] === 'ct160' && backref[3] && backref[4].toLowerCase().replace(FuzzyRE, '') === tmpti) {
                             id = backref[3];
                             url = 'http://www.utamap.com' + backref[2].slice(1);
                             this.next = true;

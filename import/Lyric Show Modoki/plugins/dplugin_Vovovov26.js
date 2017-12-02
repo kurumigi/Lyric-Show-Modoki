@@ -66,12 +66,8 @@
                 else {
                     main(text);
                     StatusBar.showText(prop.Panel.Lang == 'ja' ? '検索終了。歌詞を取得しました。' : 'Search completed.');
-                    var AutoSaveTo = window.GetProperty('Plugin.Search.AutoSaveTo');
 
-                    if (/^Tag$/i.test(AutoSaveTo))
-                        saveToTag(getFieldName());
-                    else if (/^File$/i.test(AutoSaveTo))
-                        saveToFile(parse_path + (filetype === 'lrc' ? '.lrc' : '.txt'));
+                    plugin_auto_save();
                 }
             }
             else {
@@ -91,7 +87,7 @@
             var tmp, tmpti;
 
             var IdSearchRE = /<h3><a href="blog-entry-(\d+?)\.html">(.+?)<\/a><\/h3>/i; // $1:id, $2:title
-            var ContentsSearchRE = /<div class="contents_body">(.+)/i; // $1:contents
+            var ContentsSearchRE = /<div class="contents_body">([^<].+)/i; // $1:contents
             var LineFeedCode = prop.Save.LineFeedCode;
 
             if (depth === 1) { // lyric

@@ -3,7 +3,7 @@
 
 // ==PREPROCESSOR==
 // @name "Lyric Show Modoki"
-// @version "1.7.0-Mod-20170606"
+// @version "1.7.2-Mod-20171203"
 // @author "tomato111"
 // @import "%fb2k_profile_path%import\common\lib.js"
 // ==/PREPROCESSOR==
@@ -23,7 +23,7 @@ var fs = new ActiveXObject("Scripting.FileSystemObject"); // File System Object
 var ws = new ActiveXObject("WScript.Shell"); // WScript Shell Object
 var Trace = new TraceLog();
 var scriptName = "Lyric Show Modoki";
-var scriptVersion = "1.7.0-Mod-20170606";
+var scriptVersion = "1.7.2-Mod-20171203";
 var scriptdir = fb.ProfilePath + "import\\" + scriptName + "\\";
 var commondir = fb.ProfilePath + "import\\common\\";
 var down_pos = {};
@@ -370,11 +370,18 @@ prop = new function () {
 
     // ==Plugin====
     this.Plugin = {
+        AutoSaveTo: window.GetProperty("Plugin.Search.AutoSaveTo", ""),
+        AutoSaveLrcTo: window.GetProperty("Plugin.Search.AutoSaveLrcTo", ""),
         Disable: window.GetProperty("Plugin.Disable", ""), // set plugin's names. (e.g. dplugin_Utamap, oplugin_NewFile_TXT
         FunctionKey: window.GetProperty("Plugin.FunctionKey", "splugin_AutoSearch,,,,,,,,uplugin_Lyric_Show_Modoki").split(",") // set plugin's names. (e.g. ,,dplugin_AZLyrics,,,,,,uplugin_Lyric_Show_Modoki
     };
 
     this.Plugin.FunctionKey.length = 9;
+
+    if (!/^(?:File|Tag)?$/i.test(this.Plugin.AutoSaveTo))
+        window.SetProperty("Plugin.Search.AutoSaveTo", this.Plugin.AutoSaveTo = "");
+    if (!/^(?:File|Tag)?$/i.test(this.Plugin.AutoSaveLrcTo))
+        window.SetProperty("Plugin.Search.AutoSaveLrcTo", this.Plugin.AutoSaveLrcTo = "");
 };
 
 //========
@@ -709,6 +716,20 @@ function saveToFile(file, status, silent) {
         meta.Dispose();
         Lock = false;
     }
+}
+
+function plugin_auto_save(status, silent) {
+
+    var to;
+    if (filetype === "lrc")
+        to = prop.Plugin.AutoSaveLrcTo;
+    else
+        to = prop.Plugin.AutoSaveTo;
+
+    if (/^Tag$/i.test(to))
+        saveToTag(getFieldName(), status, silent);
+    else if (/^File$/i.test(to))
+        saveToFile(parse_path + (filetype === "lrc" ? ".lrc" : ".txt"), status, silent);
 }
 
 function applyDelta(delta, isMouseMove) {
@@ -3027,7 +3048,7 @@ StatusBar = new function (Style) {
         this.hide.clearTimeout();
         this.TIMER = true;
         window.Repaint();
-        this.hide.timeout(time || 6000);
+        this.hide.timeout(time || 8000);
     };
 
     this.hide = function () { // mainly for timer
@@ -3180,7 +3201,7 @@ Keybind = new function () {
 
 Menu = new function () {
 
-    var _menu;
+    var _menu, item_list;
 
     //============
     //  sub menu items
@@ -3942,12 +3963,12 @@ Menu = new function () {
 
         mobj = mobj || this.LyricShow;
         _menu = buildMenu(mobj.items);
+        item_list = buildMenu.item_list;
         this.id = mobj.id;
     };
 
     this.show = function (x, y) {
         Lock_MiddleButton = true;
-        var item_list = buildMenu.item_list;
         var ret = _menu.TrackPopupMenu(x, y);
         //console(ret);
         if (ret !== 0) {

@@ -37,9 +37,9 @@
 
         function createQuery(word, id) {
             if (id)
-                return 'http://www31.atwiki.jp/touhoukashi/?page=' + id;
+                return 'https://www31.atwiki.jp/touhoukashi/?pageid=' + id;
             else
-                return 'http://www31.atwiki.jp/touhoukashi/search?andor=and&keyword=' + encodeURIComponent(word).replace(/'/g, '%27').replace(/\(/g, '%28').replace(/\)/g, '%29').replace(/%20/g, '+');
+                return 'https://www31.atwiki.jp/touhoukashi/search?andor=and&keyword=' + encodeURIComponent(word).replace(/'/g, '%27').replace(/\(/g, '%28').replace(/\)/g, '%29').replace(/%20/g, '+');
         }
 
         function onLoaded(request, depth, file) {
@@ -65,12 +65,8 @@
                 else {
                     main(text);
                     StatusBar.showText(prop.Panel.Lang == 'ja' ? '検索終了。歌詞を取得しました。' : 'Search completed.');
-                    var AutoSaveTo = window.GetProperty('Plugin.Search.AutoSaveTo');
 
-                    if (/^Tag$/i.test(AutoSaveTo))
-                        saveToTag(getFieldName());
-                    else if (/^File$/i.test(AutoSaveTo))
-                        saveToFile(parse_path + (filetype === 'lrc' ? '.lrc' : '.txt'));
+                    plugin_auto_save();
                 }
             }
             else {
@@ -89,7 +85,7 @@
         function AnalyzePage(resArray, depth) {
             var isInfo, isLyric, tmpti;
 
-            var IdSearchRE = /<a href=".+?&amp;page=(.+?)" title="(?:\d{1,2})?\.? ?(.+?)" style=".+?">/i; // $1:id, $2:title
+            var IdSearchRE = /<a href=".+?&amp;pageid=(.+?)" title="(?:\d{1,2})?\.? ?(.+?)" style=".+?">/i; // $1:id, $2:title
             var ContentsSearchRE = new RegExp('(?:<h[23] id="id_.+?">' + title + '</h[23]>|(アルバム)：<a href=")', 'i'); // サイトの書式にブレがあるので少し複雑に
             var EndInfoRE = /<\/div>/i;
             var EndLyricRE = /<div class=/i;

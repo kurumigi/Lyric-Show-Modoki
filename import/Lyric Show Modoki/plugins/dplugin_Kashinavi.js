@@ -56,8 +56,10 @@
             var Page = new AnalyzePage(resArray, depth);
 
             if (Page.id) {
-                getHTML(null, 'GET', createQuery(null, Page.id), !ASYNC, ++depth, onLoaded);
-                getHTML(null, 'GET', createQuery(null, null, Page.id), ASYNC, ++depth, onLoaded);
+                getHTML(null, 'GET', createQuery(null, Page.id), ASYNC, ++depth, function () {
+                    onLoaded.apply(null, arguments);
+                    getHTML(null, 'GET', createQuery(null, null, Page.id), ASYNC, ++depth, onLoaded);
+                });
             }
             else if (Page.lyrics) {
                 var text = onLoaded.info + Page.lyrics;
@@ -69,12 +71,8 @@
                 else {
                     main(text);
                     StatusBar.showText(prop.Panel.Lang == 'ja' ? '検索終了。歌詞を取得しました。' : 'Search completed.');
-                    var AutoSaveTo = window.GetProperty('Plugin.Search.AutoSaveTo');
 
-                    if (/^Tag$/i.test(AutoSaveTo))
-                        saveToTag(getFieldName());
-                    else if (/^File$/i.test(AutoSaveTo))
-                        saveToFile(parse_path + (filetype === 'lrc' ? '.lrc' : '.txt'));
+                    plugin_auto_save();
                 }
             }
             else if (onLoaded.info) { return; }
